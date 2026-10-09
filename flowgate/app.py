@@ -79,7 +79,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_x, self.cb_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self.cb_xf_x, self.cb_xf_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         for cb in (self.cb_xf_x, self.cb_xf_y):
-            cb.addItems(["Linear", "Log", "Biex"])
+            cb.addItems(["Linear", "Log", "Biex", "Biex (FlowJo)"])
+            cb.setItemData(3, "The biexponential FlowJo used for this channel, read from the "
+                              "imported workspace", QtCore.Qt.ToolTipRole)
         self.sp_w_x, self.sp_w_y = QtWidgets.QDoubleSpinBox(), QtWidgets.QDoubleSpinBox()
         for sp in (self.sp_w_x, self.sp_w_y):
             sp.setRange(0.0, 2.0); sp.setSingleStep(0.1); sp.setDecimals(2); sp.setPrefix("W ")
@@ -564,9 +566,9 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 spec = self.ws.xform(ch, s)
                 xfcb.setEnabled(True)
-                xfcb.setCurrentIndex({"linear": 0, "log": 1, "biex": 2}[spec["kind"]])
+                xfcb.setCurrentIndex({"linear": 0, "log": 1, "biex": 2, "wspbiex": 3}[spec["kind"]])
                 sp.setEnabled(spec["kind"] == "biex")
-                sp.setValue(spec.get("W", 0.5))
+                sp.setValue(spec.get("W", 0.5) if spec["kind"] == "biex" else 0.5)
             xfcb.blockSignals(False); sp.blockSignals(False)
 
     def _axes_changed(self):
@@ -587,6 +589,10 @@ class MainWindow(QtWidgets.QMainWindow):
             spec = tx.linear(T)
         elif kind == "log":
             spec = tx.log(T)
+        elif kind.startswith("biex (flowjo"):
+            if old["kind"] == "wspbiex":
+                return
+            spec = tx.wspbiex(T, width=-10.0, positive=4.5 + math.log10(T / 262144.0))
         else:
             W = sp.value() if old["kind"] == "biex" else 0.5
             M = 4.5 + math.log10(T / 262144.0)

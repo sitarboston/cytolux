@@ -13,6 +13,9 @@ from collections import Counter
 
 from . import transforms as tx
 
+EDGE = 1e-9   # a gate bound this close to the end of the axis is treated as open
+
+TNS = "{http://www.isac-net.org/std/Gating-ML/v2.0/transformations}"
 GNS = "{http://www.isac-net.org/std/Gating-ML/v2.0/gating}"
 DNS = "{http://www.isac-net.org/std/Gating-ML/v2.0/datatypes}"
 
@@ -43,6 +46,50 @@ def parse_gate(gate):
     return out
 
 
+def _attr(el, name):
+    """Attribute lookup that ignores the namespace prefix FlowJo uses."""
+    for k, v in el.attrib.items():
+        if k.split("}")[-1] == name:
+            return v
+    return None
+
+
+def parse_transforms(sample_el):
+    """FlowJo's per-parameter display transforms -> {channel: FlowGate transform spec}.
+    These matter: FlowJo stores gate coordinates against these axes, so a gate bound sitting at
+    the bottom of a biex axis means 'everything below', not a hard cut-off."""
+    out = {}
+    t = sample_el.find("Transformations")
+    if t is None:
+        return out
+    for el in t:
+        kind = el.tag.split("}")[-1]
+        par = None
+        for c in el:
+            if c.tag.split("}")[-1] == "parameter":
+                par = _attr(c, "name")
+        if not par:
+            continue
+        try:
+            if kind == "linear":
+                mx = float(_attr(el, "maxRange") or 262144)
+                out[par] = tx.linear(mx)
+            elif kind == "biex":
+                out[par] = tx.wspbiex(float(_attr(el, "maxRange") or 262144),
+                                      width=float(_attr(el, "width") or -10),
+                                      positive=float(_attr(el, "pos") or 4.41854),
+                                      negative=float(_attr(el, "neg") or 0))
+            elif kind == "log":
+                mx = float(_attr(el, "maxRange") or 262144)
+                offset = float(_attr(el, "offset") or 1)
+                out[par] = tx.log(mx, decades=max(1.0, math.log10(mx / max(offset, 1e-9))))
+            elif kind == "fasinh":
+                out[par] = tx.biex(float(_attr(el, "maxRange") or 262144))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def _walk(node, parent_path, acc):
     for sub in node.findall("Subpopulations"):
         for pop in sub.findall("Population"):
@@ -67,29 +114,48 @@ def parse_wsp(path):
         pops = []
         _walk(sn, "", pops)
         result[fname] = {"total": int(sn.get("count", "-1")), "uri": uri.replace("file:", ""),
-                         "populations": pops}
+                         "populations": pops, "transforms": parse_transforms(s)}
     return result
 
 
-def to_flowgate_gate(fj, ranges):
-    """FlowJo gate dict -> FlowGate gate dict. ranges: channel -> $PnR."""
+def to_flowgate_gate(fj, ranges, xforms=None):
+    """FlowJo gate dict -> FlowGate gate dict, expressed on FlowJo's own display axes.
+
+    FlowJo writes rectangle and polygon coordinates as raw (compensated) values and ellipse
+    coordinates in display units (0..256). Both are converted into the 0..1 display space of
+    the parameter's FlowJo transform, so the gate is the shape that was drawn. A rectangle
+    bound that sits at or past the end of the axis is stored as open (None), which is what
+    FlowJo does: events beyond the axis are still inside the gate.
+    """
     if fj is None:
         return None
+    xforms = xforms or {}
     dims = fj["dims"]
 
-    def T(d):
+    def spec(d):
         rc = d[5:] if d.startswith("Comp-") else d
-        return ranges.get(rc, 262144.0)
+        if d in xforms:
+            return xforms[d]
+        if rc in xforms:
+            return xforms[rc]
+        return tx.linear(ranges.get(rc, 262144.0))
 
-    xfs = [tx.linear(T(d)) for d in dims]
+    xfs = [spec(d) for d in dims]
+
+    def fwd(i, v):
+        return None if v is None else float(tx.apply(xfs[i], v))
+
     t = fj["type"]
     if t == "RectangleGate":
-        g = {"type": "rect", "dims": dims, "xf": xfs,
-             "min": [None if v is None else v / T(d) for v, d in zip(fj["min"], dims)],
-             "max": [None if v is None else v / T(d) for v, d in zip(fj["max"], dims)]}
+        mn, mx = [], []
+        for i, (lo, hi) in enumerate(zip(fj["min"], fj["max"])):
+            a, b = fwd(i, lo), fwd(i, hi)
+            mn.append(None if a is None or a <= EDGE else a)
+            mx.append(None if b is None or b >= 1.0 - EDGE else b)
+        g = {"type": "rect", "dims": dims, "xf": xfs, "min": mn, "max": mx}
     elif t == "PolygonGate":
         g = {"type": "poly", "dims": dims, "xf": xfs,
-             "vertices": [[v[0] / T(dims[0]), v[1] / T(dims[1])] for v in fj["vertices"]]}
+             "vertices": [[fwd(0, v[0]), fwd(1, v[1])] for v in fj["vertices"]]}
     elif t == "EllipsoidGate":
         f1, f2 = [[c / 256.0 for c in p] for p in fj["foci"]]
         e1, e2 = [[c / 256.0 for c in p] for p in fj["edge"][:2]]
@@ -119,13 +185,16 @@ def import_into(ws, wsp_path, ranges=None):
             for c, r in s.ranges.items():
                 ranges.setdefault(c, r)
     per_sample, order, parents, fj_counts, skipped = {}, [], {}, {}, Counter()
+    fj_xforms = {}
     for fname, rec in data.items():
         if fname not in names:
             continue
         per_sample[fname] = {}
         fj_counts[fname] = {"root": rec["total"]}
+        for c, spec in rec.get("transforms", {}).items():
+            fj_xforms.setdefault(c, spec)
         for p in rec["populations"]:
-            g = to_flowgate_gate(p["gate"], ranges)
+            g = to_flowgate_gate(p["gate"], ranges, rec.get("transforms"))
             if g is None:
                 skipped[(p["gate"] or {}).get("type", "none")] += 1
                 continue
@@ -147,7 +216,9 @@ def import_into(ws, wsp_path, ranges=None):
         for s, gates in per_sample.items():
             if path in gates and json.dumps(gates[path], sort_keys=True) != gkey:
                 ws.overrides.setdefault(s, {})[path] = gates[path]
-    # FlowJo shows these channels on linear axes; keep the user's view consistent with the gates
+    # show the same axes FlowJo used, so imported gates can be edited where they were drawn
+    for c, spec in fj_xforms.items():
+        ws.xforms.setdefault(ws.raw_channel(c), spec)
     ws.changed()
     return len(per_sample), fj_counts, dict(skipped)
 

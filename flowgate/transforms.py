@@ -11,6 +11,22 @@ import numpy as np
 import flowkit as fk
 
 _logicle_cache = {}
+_wspbiex_cache = {}
+WSP_SCALE = 4096.0   # FlowKit's WSPBiexTransform maps onto 0..4096
+
+
+def _wspbiex(spec):
+    key = (spec["T"], spec["W"], spec["P"], spec.get("N", 0.0))
+    if key not in _wspbiex_cache:
+        _wspbiex_cache[key] = fk.transforms.WSPBiexTransform(
+            negative=spec.get("N", 0.0), width=spec["W"], positive=spec["P"], max_value=spec["T"])
+    return _wspbiex_cache[key]
+
+
+def wspbiex(T, width=-10.0, positive=4.41854, negative=0.0):
+    """FlowJo 10's own biexponential, as written in a .wsp (width is a negative raw value)."""
+    return {"kind": "wspbiex", "T": float(T), "W": float(width),
+            "P": float(positive), "N": float(negative)}
 
 
 def _logicle(spec):
@@ -50,6 +66,9 @@ def apply(spec, x):
     if k == "biex":
         shape = x.shape
         return np.asarray(_logicle(spec).apply(x.reshape(-1))).reshape(shape)
+    if k == "wspbiex":
+        shape = x.shape
+        return np.asarray(_wspbiex(spec).apply(x.reshape(-1))).reshape(shape) / WSP_SCALE
     raise ValueError(k)
 
 
@@ -64,6 +83,10 @@ def inverse(spec, y):
     if k == "biex":
         shape = y.shape
         return np.asarray(_logicle(spec).inverse(y.reshape(-1))).reshape(shape)
+    if k == "wspbiex":
+        shape = y.shape
+        return np.asarray(_wspbiex(spec).inverse(
+            np.clip(y.reshape(-1), 0.0, 1.0) * WSP_SCALE)).reshape(shape)
     raise ValueError(k)
 
 
@@ -113,7 +136,7 @@ def ticks(spec):
         return major, minor
     hi = int(math.floor(math.log10(T)))
     lo = int(math.ceil(math.log10(T) - spec["decades"])) if k == "log" else 1
-    if k == "biex":
+    if k in ("biex", "wspbiex"):
         major.append((float(apply(spec, 0.0)), "0"))
         # negative decades that are still on scale
         for e in range(1, hi + 1):
@@ -132,7 +155,7 @@ def ticks(spec):
             q = float(apply(spec, m * 10.0 ** e))
             if 0 <= q <= 1.0001:
                 minor.append(q)
-    if k == "biex":
+    if k in ("biex", "wspbiex"):
         # drop labels that would crowd the zero region
         major.sort()
         kept = []
