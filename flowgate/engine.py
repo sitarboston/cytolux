@@ -206,6 +206,9 @@ class Workspace:
         self.overrides = {}          # sample name -> {path: gate}
         self.xforms = {}             # channel -> transform dict
         self.labels = {}             # channel -> user label
+        self.stat_defs = []          # [{"pop","stat","channel","arg","name"}]
+        self.annot_cols = []         # sample annotation column names, e.g. Donor, Dose
+        self.annotations = {}        # sample name -> {column: value}
         self.path = None
         self._events = OrderedDict()
         self._masks = {}             # sample name -> {path: mask}
@@ -264,11 +267,20 @@ class Workspace:
     def raw_channel(self, dim):
         return dim[5:] if dim.startswith("Comp-") else dim
 
+    def marker(self, rc, s=None):
+        """User label, else this sample's $PnS, else the first non-empty $PnS of any sample
+        (some instruments leave marker names out of some files)."""
+        if rc in self.labels:
+            return self.labels[rc]
+        if s is not None and s.markers.get(rc):
+            return s.markers[rc]
+        for o in self.samples:
+            if o.markers.get(rc):
+                return o.markers[rc]
+        return ""
+
     def label(self, dim, s=None):
-        rc = self.raw_channel(dim)
-        lab = self.labels.get(rc)
-        if lab is None and s is not None:
-            lab = s.markers.get(rc, "")
+        lab = self.marker(self.raw_channel(dim))
         return f"{dim} :: {lab}" if lab else dim
 
     def xform(self, dim, s=None):
@@ -361,6 +373,7 @@ class Workspace:
             for g in list(ov):
                 if g in gone:
                     del ov[g]
+        self.stat_defs = [d for d in self.stat_defs if d["pop"] not in gone and d.get("arg") not in gone]
         self.changed()
 
     def rename_pop(self, path, new_name):
@@ -376,6 +389,11 @@ class Workspace:
             for k in list(ov):
                 if k == path or k.startswith(path + "/"):
                     ov[new_path + k[len(path):]] = ov.pop(k)
+        for d in self.stat_defs:
+            for key in ("pop", "arg"):
+                v = d.get(key)
+                if isinstance(v, str) and (v == path or v.startswith(path + "/")):
+                    d[key] = new_path + v[len(path):]
         self.changed()
         return new_path
 
@@ -423,6 +441,7 @@ class Workspace:
             {"channels": self.custom_comp[0], "matrix": np.asarray(self.custom_comp[1]).tolist()},
             "pops": self.pops, "overrides": self.overrides,
             "xforms": self.xforms, "labels": self.labels,
+            "stat_defs": self.stat_defs, "annot_cols": self.annot_cols, "annotations": self.annotations,
         }
 
     def save(self, path):
@@ -453,5 +472,138 @@ class Workspace:
         ws.overrides = d.get("overrides", {})
         ws.xforms = d.get("xforms", {})
         ws.labels = d.get("labels", {})
+        ws.stat_defs = d.get("stat_defs", [])
+        ws.annot_cols = d.get("annot_cols", [])
+        ws.annotations = d.get("annotations", {})
         ws.path = path
         return ws
+
+
+# ----------------------------------------------------------------------------- statistics
+
+STATS = {
+    # name: (needs channel, description)
+    "Count": (False, "Number of events in the population"),
+    "% of parent": (False, "Percent of the parent population"),
+    "% of total": (False, "Percent of all events in the file"),
+    "% of": (False, "Percent of a chosen ancestor population"),
+    "Median": (True, "Median intensity (what FlowJo calls Median; the usual 'MFI')"),
+    "Mean": (True, "Arithmetic mean intensity"),
+    "Geometric mean": (True, "Geometric mean (positive events only, as FlowJo)"),
+    "SD": (True, "Standard deviation"),
+    "CV": (True, "Coefficient of variation, % (SD / mean)"),
+    "Robust CV": (True, "FlowJo's rCV, %: half the 15.87th to 84.13th percentile spread / median"),
+    "Percentile": (True, "Intensity at a chosen percentile"),
+}
+PERCENT_STATS = {"% of parent", "% of total", "% of", "CV", "Robust CV"}
+
+
+def stat_name(d, ws=None, s=None):
+    if d.get("name"):
+        return d["name"]
+    pop = "All events" if d["pop"] == "root" else d["pop"].rsplit("/", 1)[1]
+    st = d["stat"]
+    if st == "% of":
+        anc = "All events" if d.get("arg") in (None, "root") else d["arg"].rsplit("/", 1)[1]
+        st = f"% of {anc}"
+    elif st == "Percentile":
+        st = f"{d.get('arg', 50):g}th percentile"
+    if STATS[d["stat"]][0]:
+        ch = d["channel"]
+        lab = ws.label(ch, s).split(" :: ")[-1] if ws is not None else ch
+        return f"{pop} | {st} {lab}"
+    return f"{pop} | {st}"
+
+
+def compute_stat(ws, s, d):
+    m = ws.masks(s)
+    if d["pop"] not in m:
+        return float("nan")
+    mask = m[d["pop"]]
+    n = int(mask.sum())
+    st = d["stat"]
+    if st == "Count":
+        return n
+    if st == "% of parent":
+        par = ws.pop(d["pop"])["parent"] if d["pop"] != "root" else "root"
+        den = int(m[par].sum())
+        return 100.0 * n / den if den else float("nan")
+    if st == "% of total":
+        den = int(m["root"].sum())
+        return 100.0 * n / den if den else float("nan")
+    if st == "% of":
+        anc = d.get("arg") or "root"
+        if anc not in m:
+            return float("nan")
+        den = int(m[anc].sum())
+        return 100.0 * n / den if den else float("nan")
+    if n == 0:
+        return float("nan")
+    try:
+        v = ws.events(s).col(d["channel"])[mask]
+    except KeyError:
+        return float("nan")
+    if st == "Median":
+        return float(np.median(v))
+    if st == "Mean":
+        return float(np.mean(v))
+    if st == "Geometric mean":
+        p = v[v > 0]
+        return float(np.exp(np.mean(np.log(p)))) if len(p) else float("nan")
+    if st == "SD":
+        return float(np.std(v, ddof=1)) if n > 1 else float("nan")
+    if st == "CV":
+        mu = np.mean(v)
+        return float(100 * np.std(v, ddof=1) / mu) if n > 1 and mu != 0 else float("nan")
+    if st == "Robust CV":
+        med = np.median(v)
+        lo, hi = np.percentile(v, [15.87, 84.13])
+        return float(100 * 0.5 * (hi - lo) / med) if med != 0 else float("nan")
+    if st == "Percentile":
+        return float(np.percentile(v, d.get("arg", 50)))
+    raise ValueError(st)
+
+
+def stats_table(ws, samples=None):
+    """DataFrame: one row per sample; annotation columns, then one column per statistic."""
+    import pandas as pd
+    samples = samples or ws.samples
+    rows = []
+    for s in samples:
+        r = {"Sample": s.name}
+        for c in ws.annot_cols:
+            r[c] = ws.annotations.get(s.name, {}).get(c, "")
+        for d in ws.stat_defs:
+            r[stat_name(d, ws, s)] = compute_stat(ws, s, d)
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+# ----------------------------------------------------------------------------- templates
+
+def template_dict(ws):
+    return {"format": "flowgate-template", "version": 1, "pops": ws.pops, "xforms": ws.xforms,
+            "labels": ws.labels, "stat_defs": ws.stat_defs, "comp_mode": ws.comp_mode,
+            "custom_comp": None if ws.custom_comp is None else
+            {"channels": ws.custom_comp[0], "matrix": np.asarray(ws.custom_comp[1]).tolist()}}
+
+
+def apply_template(ws, d):
+    """Put a saved gating tree (and its statistics, axis scales, channel names) onto the
+    samples in ws. Returns a list of channels the template uses that the samples lack."""
+    ws.pops = copy.deepcopy(d["pops"])
+    ws.overrides = {}
+    ws.xforms.update(d.get("xforms", {}))
+    ws.labels.update(d.get("labels", {}))
+    ws.stat_defs = copy.deepcopy(d.get("stat_defs", []))
+    if d.get("comp_mode"):
+        ws.comp_mode = d["comp_mode"]
+    cc = d.get("custom_comp")
+    if cc:
+        ws.custom_comp = (cc["channels"], np.array(cc["matrix"]))
+    ws.changed(events=True)
+    have = set()
+    for s in ws.samples:
+        have |= set(s.channels)
+    missing = sorted({ws.raw_channel(dim) for p in ws.pops for dim in p["gate"]["dims"]} - have)
+    return missing

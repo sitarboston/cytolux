@@ -1,5 +1,6 @@
 """FlowGate main window."""
 import glob
+import json
 import re
 import math
 import os
@@ -12,7 +13,9 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import transforms as tx
 from . import wsp
-from .engine import Workspace, gate_outline, is_scatter
+from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
+                     stat_name, stats_table, template_dict)
+from .stats_ui import AddStatDialog, AnnotateDialog, export_excel, fmt_value
 from .plot import GatePlot, LUT, density_levels
 
 APP = "FlowGate"
@@ -45,6 +48,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # ---- left: samples + gate tree
         self.sample_list = QtWidgets.QListWidget()
         self.sample_list.currentRowChanged.connect(self._sample_changed)
+        self.sample_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.sample_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.sample_list.customContextMenuRequested.connect(self._sample_menu)
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Population", "Count", "% Parent", "% Total"])
         hdr = self.tree.header()
@@ -113,15 +119,32 @@ class MainWindow(QtWidgets.QMainWindow):
         # ---- statistics tab
         self.table = QtWidgets.QTableWidget()
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.cb_stat = QtWidgets.QComboBox(); self.cb_stat.addItems(["% Parent", "Count", "% Total", "Median of X axis channel"])
-        self.cb_stat.currentIndexChanged.connect(self._refresh_table)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectColumns)
+        self.table.horizontalHeader().setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.table.horizontalHeader().customContextMenuRequested.connect(self._stat_header_menu)
+        self.table.horizontalHeader().sectionDoubleClicked.connect(self._rename_stat)
+        self.stat_hint = QtWidgets.QLabel(
+            "No statistics yet. <b>Add statistic</b> picks populations, a statistic (count, %, median…) and channels; "
+            "<b>Count + % of parent for every gate</b> adds the usual set in one click.")
+        self.stat_hint.setWordWrap(True)
         stab = QtWidgets.QWidget(); sl = QtWidgets.QVBoxLayout(stab)
         srow = QtWidgets.QHBoxLayout()
-        srow.addWidget(QtWidgets.QLabel("Show")); srow.addWidget(self.cb_stat)
-        b1 = QtWidgets.QPushButton("Refresh"); b1.clicked.connect(self._refresh_table)
-        b2 = QtWidgets.QPushButton("Export to Excel…"); b2.clicked.connect(self.export_stats)
-        srow.addStretch(1); srow.addWidget(b1); srow.addWidget(b2)
-        sl.addLayout(srow); sl.addWidget(self.table, 1)
+        for text, fn, tip in (
+                ("Σ Add statistic…", lambda: self.add_stat(), "Add columns: populations × statistic × channels"),
+                ("Count + % of parent for every gate", self._add_standard_stats, "One click: the usual table"),
+                ("Remove column", self._remove_stat_cols, "Remove the selected column(s)"),
+                ("Move left", lambda: self._move_stat(-1), "Move column left"),
+                ("Move right", lambda: self._move_stat(1), "Move column right"),
+                ("Annotate samples…", self.annotate, "Donor, dose, condition… as leading columns"),
+        ):
+            b = QtWidgets.QPushButton(text); b.setToolTip(tip); b.clicked.connect(lambda _=False, f=fn: self._safe(f))
+            srow.addWidget(b)
+        srow.addStretch(1)
+        b = QtWidgets.QPushButton("Copy table"); b.setToolTip("Copy to the clipboard, ready to paste into Excel or Prism")
+        b.clicked.connect(self._copy_table); srow.addWidget(b)
+        b = QtWidgets.QPushButton("Export to Excel…"); b.clicked.connect(lambda: self._safe(self.export_stats))
+        srow.addWidget(b)
+        sl.addLayout(srow); sl.addWidget(self.stat_hint); sl.addWidget(self.table, 1)
 
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.addTab(ptab, "Gating")
@@ -177,6 +200,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act(m, "Save workspace as…", lambda: self.save_workspace(True), "Ctrl+Shift+S")
         m.addSeparator()
         self._act(m, "Import FlowJo workspace (.wsp)…", self.import_wsp, "Ctrl+I")
+        m.addSeparator()
+        self._act(m, "Save gating template…", self.save_template)
+        self._act(m, "Apply gating template to these samples…", self.apply_template_file)
+        self._act(m, "New analysis: FCS folder + gating template…", self.new_from_template, "Ctrl+N")
+        m.addSeparator()
         self._act(m, "Export statistics to Excel…", self.export_stats, "Ctrl+E")
         self._act(m, "Export plot as image…", self.export_plot)
         m.addSeparator()
@@ -192,6 +220,8 @@ class MainWindow(QtWidgets.QMainWindow):
         m = self.menuBar().addMenu("&Edit")
         self._act(m, "Rename channels (marker names)…", self.edit_labels)
         self._act(m, "Delete selected gate", self._delete_selected, "Delete")
+        self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
+        self._act(m, "Add statistic…", lambda: self.add_stat(), "Ctrl+T")
         m = self.menuBar().addMenu("&Help")
         self._act(m, "Quick guide", self.show_help, "F1")
         self._act(m, "Check against FlowJo counts", self.show_fj_check)
@@ -371,6 +401,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def export_stats(self):
         if not self.ws.samples:
             return
+        if not self.ws.stat_defs:
+            r = QtWidgets.QMessageBox.question(
+                self, APP, "No statistics are defined yet. Add Count and % of parent for every gate, then export?")
+            if r != QtWidgets.QMessageBox.Yes:
+                return
+            self._add_standard_stats()
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Export statistics", os.path.join(self.settings.value("lastdir", os.path.expanduser("~")), "statistics.xlsx"),
             "Excel (*.xlsx)")
@@ -380,25 +416,15 @@ class MainWindow(QtWidgets.QMainWindow):
             path += ".xlsx"
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            rows = []
-            for s in self.ws.samples:
-                st = self.ws.stats(s)
-                for p in [{"path": "root", "parent": ""}] + self.ws.pops:
-                    if p["path"] in st:
-                        c, pp, pt = st[p["path"]]
-                        rows.append({"Sample": s.name, "Population": "All events" if p["path"] == "root" else p["path"],
-                                     "Count": c, "% Parent": round(pp, 4), "% Total": round(pt, 4),
-                                     "Adjusted for this sample": self.ws.has_override(p["path"], s.name)})
-            long = pd.DataFrame(rows)
-            with pd.ExcelWriter(path) as xw:
-                for col in ("% Parent", "Count"):
-                    wide = long.pivot(index="Sample", columns="Population", values=col)
-                    wide = wide[[c for c in long["Population"].unique()]]
-                    wide.to_excel(xw, sheet_name=col.replace("%", "Pct").strip())
-                long.to_excel(xw, sheet_name="Long format", index=False)
+            nrow, ncol = export_excel(self.ws, path)
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
-        self.statusBar().showMessage(f"Exported {path}", 6000)
+        self.settings.setValue("lastdir", os.path.dirname(path))
+        r = QtWidgets.QMessageBox.question(
+            self, APP, f"Saved {os.path.basename(path)}: {nrow} samples × {ncol} statistics, plus every gate's "
+                       "counts on the 'All gates' sheet.\n\nOpen it now?")
+        if r == QtWidgets.QMessageBox.Yes:
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))
 
     def export_plot(self):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export plot", "plot.png", "PNG (*.png)")
@@ -601,6 +627,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 it.setToolTip(0, "Gate adjusted for this sample only")
             par.addChild(it)
             items[p["path"]] = it
+        grey = QtGui.QBrush(QtGui.QColor(70, 90, 150))
+        for k, d in enumerate(self.ws.stat_defs):
+            par = items.get(d["pop"])
+            if par is None or d["stat"] in ("Count", "% of parent", "% of total"):
+                continue                       # already shown in the tree's own columns
+            v = compute_stat(self.ws, s, d)
+            name = stat_name(d, self.ws, s).split(" | ", 1)[-1]
+            it = QtWidgets.QTreeWidgetItem(["Σ " + name, fmt_value(d["stat"], v), "", ""])
+            it.setData(0, QtCore.Qt.UserRole, f"stat:{k}")
+            it.setForeground(0, grey); it.setForeground(1, grey)
+            it.setTextAlignment(1, QtCore.Qt.AlignRight)
+            par.addChild(it)
         self.tree.expandAll()
         sel = items.get(self.cur_pop, root)
         if self.cur_pop not in items:
@@ -612,7 +650,10 @@ class MainWindow(QtWidgets.QMainWindow):
         it = self.tree.currentItem()
         if it is None:
             return
-        self.cur_pop = it.data(0, QtCore.Qt.UserRole)
+        data = it.data(0, QtCore.Qt.UserRole)
+        if data.startswith("stat:"):
+            return
+        self.cur_pop = data
         if self.cur_pop in self.view:
             self._set_axes(*self.view[self.cur_pop])
         else:
@@ -645,13 +686,24 @@ class MainWindow(QtWidgets.QMainWindow):
         if it is None:
             return
         path = it.data(0, QtCore.Qt.UserRole)
-        if path != "root":
-            self._pop_menu(path, self.tree.viewport().mapToGlobal(pos))
+        gpos = self.tree.viewport().mapToGlobal(pos)
+        if path.startswith("stat:"):
+            k = int(path[5:])
+            m = QtWidgets.QMenu(self)
+            m.addAction("Remove this statistic", lambda: self._remove_stats([k]))
+            m.exec(gpos)
+        elif path == "root":
+            m = QtWidgets.QMenu(self)
+            m.addAction("Σ Add statistic for all events…", lambda: self.add_stat(["root"]))
+            m.exec(gpos)
+        else:
+            self._pop_menu(path, gpos)
 
     def _pop_menu(self, path, gpos):
         s = self.cur_sample
         m = QtWidgets.QMenu(self)
         m.addAction("Open this population", lambda: self._select_pop(path))
+        m.addAction("Σ Add statistic for this population…", lambda: self.add_stat([path]))
         m.addAction("Rename…", lambda: self._rename(path))
         m.addAction("Delete (with its sub-gates)", lambda: self._delete(path))
         m.addSeparator()
@@ -787,7 +839,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _short(self, ch):
         rc = self.ws.raw_channel(ch)
-        lab = self.ws.labels.get(rc) or (self.cur_sample.markers.get(rc, "") if self.cur_sample else "")
+        lab = self.ws.marker(rc)
         lab = re.sub(r"-[AHW]$", "", lab.strip())
         if not lab:
             return re.sub(r"-[AHW]$", "", rc)
@@ -914,40 +966,225 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.setCurrentIndex(0)
 
     def _refresh_table(self):
+        self.table.clear()
+        self.stat_hint.setVisible(not self.ws.stat_defs)
         if not self.ws.samples:
             return
-        which = self.cb_stat.currentText()
-        pops = self.ws.pops
-        xch = self.cb_x.currentData()
-        self.table.clear()
+        s0 = self.ws.samples[0]
+        cols = self.ws.annot_cols
+        defs = self.ws.stat_defs
         self.table.setRowCount(len(self.ws.samples))
-        self.table.setColumnCount(len(pops) + 1)
-        self.table.setHorizontalHeaderLabels(["All events"] + [p["path"].lstrip("/").replace("/", " / ") for p in pops])
+        self.table.setColumnCount(len(cols) + len(defs))
+        heads = list(cols) + [stat_name(d, self.ws, s0).replace(" | ", "\n") for d in defs]
+        self.table.setHorizontalHeaderLabels(heads)
+        for j, d in enumerate(defs):
+            self.table.horizontalHeaderItem(len(cols) + j).setToolTip(
+                f"{d['pop']}\n{STATS[d['stat']][1]}\nDouble-click to rename; right-click for options")
         self.table.setVerticalHeaderLabels([s.name for s in self.ws.samples])
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             for r, s in enumerate(self.ws.samples):
-                st = self.ws.stats(s)
-                ms = self.ws.masks(s) if which.startswith("Median") else None
-                for cidx, path in enumerate(["root"] + [p["path"] for p in pops]):
-                    c, pp, pt = st.get(path, (0, 0, 0))
-                    if which == "Count":
-                        txt = f"{c:,}"
-                    elif which == "% Parent":
-                        txt = f"{pp:.2f}"
-                    elif which == "% Total":
-                        txt = f"{pt:.2f}"
-                    else:
-                        v = self.ws.events(s).col(xch)[ms[path]] if xch else []
-                        txt = f"{np.median(v):,.0f}" if len(v) else ""
-                    it = QtWidgets.QTableWidgetItem(txt)
+                ann = self.ws.annotations.get(s.name, {})
+                for c, col in enumerate(cols):
+                    self.table.setItem(r, c, QtWidgets.QTableWidgetItem(str(ann.get(col, ""))))
+                for j, d in enumerate(defs):
+                    it = QtWidgets.QTableWidgetItem(fmt_value(d["stat"], compute_stat(self.ws, s, d)))
                     it.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-                    if path != "root" and self.ws.has_override(path, s.name):
+                    if d["pop"] != "root" and self.ws.has_override(d["pop"], s.name):
                         f = it.font(); f.setItalic(True); it.setFont(f)
-                    self.table.setItem(r, cidx, it)
+                    self.table.setItem(r, len(cols) + j, it)
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
         self.table.resizeColumnsToContents()
+        self.table.horizontalHeader().setMinimumSectionSize(70)
+
+    # ================================================================== statistics
+    def add_stat(self, preselect=None):
+        if self.cur_sample is None:
+            return
+        if preselect is None:
+            preselect = [self.cur_pop]
+        dlg = AddStatDialog(self.ws, self.cur_sample, self, preselect=preselect, channel=self.cb_x.currentData())
+        if dlg.exec():
+            new = dlg.defs()
+            if not new:
+                QtWidgets.QMessageBox.information(self, APP, "Pick at least one population (and a channel for "
+                                                             "intensity statistics).")
+                return
+            have = {json.dumps(d, sort_keys=True) for d in self.ws.stat_defs}
+            self.ws.stat_defs += [d for d in new if json.dumps(d, sort_keys=True) not in have]
+            self._stats_changed(f"Added {len(new)} statistic column(s)")
+
+    def _add_standard_stats(self):
+        have = {json.dumps(d, sort_keys=True) for d in self.ws.stat_defs}
+        add = []
+        for p in self.ws.pops:
+            for st in ("Count", "% of parent"):
+                d = {"pop": p["path"], "stat": st, "channel": None}
+                if json.dumps(d, sort_keys=True) not in have:
+                    add.append(d)
+        self.ws.stat_defs += add
+        self._stats_changed(f"Added {len(add)} columns")
+
+    def _selected_stat_cols(self):
+        n = len(self.ws.annot_cols)
+        cols = sorted({i.column() for i in self.table.selectedIndexes()} |
+                      {i.column() for i in self.table.selectionModel().selectedColumns()})
+        return [c - n for c in cols if c >= n]
+
+    def _remove_stat_cols(self):
+        ks = self._selected_stat_cols()
+        if not ks:
+            QtWidgets.QMessageBox.information(self, APP, "Click a column header first (Ctrl-click for several).")
+            return
+        self._remove_stats(ks)
+
+    def _remove_stats(self, ks):
+        self.ws.stat_defs = [d for k, d in enumerate(self.ws.stat_defs) if k not in set(ks)]
+        self._stats_changed(f"Removed {len(ks)} column(s)")
+
+    def _move_stat(self, step):
+        ks = self._selected_stat_cols()
+        if len(ks) != 1:
+            return
+        k = ks[0]; t = k + step
+        if 0 <= t < len(self.ws.stat_defs):
+            d = self.ws.stat_defs
+            d[k], d[t] = d[t], d[k]
+            self._stats_changed()
+            self.table.selectColumn(len(self.ws.annot_cols) + t)
+
+    def _rename_stat(self, col):
+        k = col - len(self.ws.annot_cols)
+        if k < 0:
+            return
+        d = self.ws.stat_defs[k]
+        name, ok = QtWidgets.QInputDialog.getText(self, APP, "Column name (empty = automatic):",
+                                                  text=stat_name(d, self.ws, self.ws.samples[0]))
+        if ok:
+            d.pop("name", None)
+            if name.strip() and name.strip() != stat_name(d, self.ws, self.ws.samples[0]):
+                d["name"] = name.strip()
+            self._stats_changed()
+
+    def _stat_header_menu(self, pos):
+        col = self.table.horizontalHeader().logicalIndexAt(pos)
+        k = col - len(self.ws.annot_cols)
+        m = QtWidgets.QMenu(self)
+        if k >= 0:
+            m.addAction("Rename column…", lambda: self._rename_stat(col))
+            m.addAction("Remove column", lambda: self._remove_stats([k]))
+            m.addAction("Show this population on the Gating tab",
+                        lambda: (self.tabs.setCurrentIndex(0), self._select_pop(self.ws.stat_defs[k]["pop"])))
+        else:
+            m.addAction("Edit annotations…", self.annotate)
+        m.exec(self.table.horizontalHeader().mapToGlobal(pos))
+
+    def _stats_changed(self, msg=None):
+        self._mark()
+        self._fill_tree()
+        self._refresh_table()
+        if msg:
+            self.statusBar().showMessage(msg, 5000)
+
+    def _copy_table(self):
+        df = stats_table(self.ws)
+        QtWidgets.QApplication.clipboard().setText(df.to_csv(sep="\t", index=False))
+        self.statusBar().showMessage(f"Copied {len(df)} rows × {df.shape[1]} columns", 5000)
+
+    def annotate(self):
+        if not self.ws.samples:
+            return
+        dlg = AnnotateDialog(self.ws, self)
+        if dlg.exec():
+            dlg.store()
+            self._stats_changed("Annotations saved")
+
+    # ================================================================== templates / samples
+    def save_template(self):
+        if not self.ws.pops:
+            QtWidgets.QMessageBox.information(self, APP, "There are no gates to save yet.")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Save gating template", os.path.join(self.settings.value("lastdir", os.path.expanduser("~")),
+                                                       "gating_template.fgt"), "FlowGate template (*.fgt)")
+        if not path:
+            return
+        if not path.endswith(".fgt"):
+            path += ".fgt"
+        with open(path, "w") as f:
+            json.dump(template_dict(self.ws), f, indent=1)
+        self.statusBar().showMessage(f"Template saved: {path}", 6000)
+        QtWidgets.QMessageBox.information(
+            self, APP, f"Saved the gates, statistics, axis scales and channel names to\n{path}\n\n"
+                       "Next time: File → New analysis: FCS folder + gating template.")
+
+    def apply_template_file(self, path=None):
+        if not self.ws.samples:
+            QtWidgets.QMessageBox.information(self, APP, "Open the FCS files first.")
+            return
+        if not path:
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self, "Gating template", self.settings.value("lastdir", os.path.expanduser("~")),
+                "Templates and workspaces (*.fgt *.fgw)")
+        if not path:
+            return
+        if self.ws.pops and QtWidgets.QMessageBox.question(
+                self, APP, "Replace the current gates with the template's?") != QtWidgets.QMessageBox.Yes:
+            return
+        d = json.load(open(path))
+        missing = apply_template(self.ws, d)
+        self.cur_pop = "root"
+        self.view = {}
+        self._mark()
+        self._fill_samples()
+        msg = f"Applied {len(self.ws.pops)} gates and {len(self.ws.stat_defs)} statistics to {len(self.ws.samples)} samples."
+        if missing:
+            msg += ("\n\nWarning: these channels are used by the template but are not in the new files:\n  "
+                    + ", ".join(missing) + "\nGates on them will count 0 events. Check the panel.")
+        msg += "\n\nNext: look through the samples (All samples tab) and adjust any gate that does not fit."
+        QtWidgets.QMessageBox.information(self, APP, msg)
+
+    def new_from_template(self):
+        if not self._maybe_save():
+            return
+        tpl, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Step 1 of 2: choose the gating template", self.settings.value("lastdir", os.path.expanduser("~")),
+            "Templates and workspaces (*.fgt *.fgw)")
+        if not tpl:
+            return
+        d = QtWidgets.QFileDialog.getExistingDirectory(self, "Step 2 of 2: folder with the new FCS files",
+                                                       os.path.dirname(tpl))
+        if not d:
+            return
+        files = sorted(glob.glob(os.path.join(d, "*.fcs")) + glob.glob(os.path.join(d, "*.FCS")))
+        if not files:
+            QtWidgets.QMessageBox.information(self, APP, "No .fcs files in that folder.")
+            return
+        self.ws = Workspace()
+        self.ws.add_files(files)
+        self.dirty = False
+        self.ws.pops = []
+        self.apply_template_file(tpl)
+        self._update_title()
+
+    def _sample_menu(self, pos):
+        rows = sorted({i.row() for i in self.sample_list.selectedIndexes()})
+        if not rows:
+            return
+        m = QtWidgets.QMenu(self)
+        m.addAction(f"Remove {len(rows)} sample(s) from the workspace", lambda: self._remove_samples(rows))
+        m.exec(self.sample_list.viewport().mapToGlobal(pos))
+
+    def _remove_samples(self, rows):
+        names = {self.ws.samples[r].name for r in rows}
+        self.ws.samples = [s for s in self.ws.samples if s.name not in names]
+        for n in names:
+            self.ws.overrides.pop(n, None)
+            self.ws.annotations.pop(n, None)
+        self.ws.changed(events=True)
+        self._mark()
+        self._fill_samples()
 
     # ================================================================== help
     def show_fj_check(self):

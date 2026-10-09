@@ -1,0 +1,358 @@
+{
+ "format": "flowgate-template",
+ "version": 1,
+ "pops": [
+  {
+   "path": "/Cells",
+   "name": "Cells",
+   "parent": "root",
+   "gate": {
+    "type": "poly",
+    "dims": [
+     "FSC-A",
+     "SSC-A"
+    ],
+    "xf": [
+     {
+      "kind": "linear",
+      "T": 262144.0
+     },
+     {
+      "kind": "log",
+      "T": 262144.0,
+      "decades": 4.0
+     }
+    ],
+    "vertices": [
+     [
+      0.11444091796875,
+      0.2958800173440752
+     ],
+     [
+      0.11444091796875,
+      0.7206225184280799
+     ],
+     [
+      0.95367431640625,
+      0.7206225184280799
+     ],
+     [
+      0.95367431640625,
+      0.2958800173440752
+     ]
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells",
+   "name": "Single cells",
+   "parent": "/Cells",
+   "gate": {
+    "type": "poly",
+    "dims": [
+     "FSC-A",
+     "FSC-H"
+    ],
+    "xf": [
+     {
+      "kind": "linear",
+      "T": 262144.0
+     },
+     {
+      "kind": "linear",
+      "T": 262144.0
+     }
+    ],
+    "vertices": [
+     [
+      0.11444091796875,
+      0.057220458984375
+     ],
+     [
+      0.11444091796875,
+      0.152587890625
+     ],
+     [
+      0.95367431640625,
+      0.95367431640625
+     ],
+     [
+      0.95367431640625,
+      0.5340576171875
+     ]
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells/Live",
+   "name": "Live",
+   "parent": "/Cells/Single cells",
+   "gate": {
+    "type": "rect",
+    "dims": [
+     "Comp-V525-A",
+     "Comp-V710-A"
+    ],
+    "xf": [
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     },
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     }
+    ],
+    "min": [
+     -0.10306491129643008,
+     -0.10306491129643008
+    ],
+    "max": [
+     0.5474038754790412,
+     0.9954203213361739
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells/Live/CAR- CD3+",
+   "name": "CAR- CD3+",
+   "parent": "/Cells/Single cells/Live",
+   "gate": {
+    "type": "rect",
+    "dims": [
+     "Comp-R670-A",
+     "Comp-V710-A"
+    ],
+    "xf": [
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5955193073273277,
+      "M": 4.5,
+      "A": 0.0
+     },
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     }
+    ],
+    "min": [
+     null,
+     0.5940455995160553
+    ],
+    "max": [
+     0.4926948137217696,
+     null
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells/Live/CAR+ CD3+",
+   "name": "CAR+ CD3+",
+   "parent": "/Cells/Single cells/Live",
+   "gate": {
+    "type": "rect",
+    "dims": [
+     "Comp-R670-A",
+     "Comp-V710-A"
+    ],
+    "xf": [
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5955193073273277,
+      "M": 4.5,
+      "A": 0.0
+     },
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     }
+    ],
+    "min": [
+     0.4926948137217696,
+     0.5940455995160553
+    ],
+    "max": [
+     null,
+     null
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells/Live/CAR+ CD3-",
+   "name": "CAR+ CD3-",
+   "parent": "/Cells/Single cells/Live",
+   "gate": {
+    "type": "rect",
+    "dims": [
+     "Comp-R670-A",
+     "Comp-V710-A"
+    ],
+    "xf": [
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5955193073273277,
+      "M": 4.5,
+      "A": 0.0
+     },
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     }
+    ],
+    "min": [
+     0.4926948137217696,
+     null
+    ],
+    "max": [
+     null,
+     0.5940455995160553
+    ]
+   }
+  },
+  {
+   "path": "/Cells/Single cells/Live/CAR- CD3-",
+   "name": "CAR- CD3-",
+   "parent": "/Cells/Single cells/Live",
+   "gate": {
+    "type": "rect",
+    "dims": [
+     "Comp-R670-A",
+     "Comp-V710-A"
+    ],
+    "xf": [
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5955193073273277,
+      "M": 4.5,
+      "A": 0.0
+     },
+     {
+      "kind": "biex",
+      "T": 262144.0,
+      "W": 0.5,
+      "M": 4.5,
+      "A": 0.0
+     }
+    ],
+    "min": [
+     null,
+     null
+    ],
+    "max": [
+     0.4926948137217696,
+     0.5940455995160553
+    ]
+   }
+  }
+ ],
+ "xforms": {
+  "FSC-A": {
+   "kind": "linear",
+   "T": 262144.0
+  },
+  "SSC-A": {
+   "kind": "log",
+   "T": 262144.0,
+   "decades": 4.0
+  },
+  "FSC-H": {
+   "kind": "linear",
+   "T": 262144.0
+  },
+  "V525-A": {
+   "kind": "biex",
+   "T": 262144.0,
+   "W": 0.5,
+   "M": 4.5,
+   "A": 0.0
+  },
+  "V710-A": {
+   "kind": "biex",
+   "T": 262144.0,
+   "W": 0.5,
+   "M": 4.5,
+   "A": 0.0
+  },
+  "R670-A": {
+   "kind": "biex",
+   "T": 262144.0,
+   "W": 0.5955193073273277,
+   "M": 4.5,
+   "A": 0.0
+  }
+ },
+ "labels": {},
+ "stat_defs": [
+  {
+   "pop": "/Cells/Single cells/Live/CAR- CD3+",
+   "stat": "Median",
+   "channel": "Comp-R670-A"
+  },
+  {
+   "pop": "/Cells/Single cells/Live/CAR+ CD3+",
+   "stat": "Median",
+   "channel": "Comp-R670-A"
+  },
+  {
+   "pop": "/Cells",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live",
+   "stat": "Count",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live/CAR- CD3+",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live/CAR+ CD3+",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live/CAR+ CD3-",
+   "stat": "% of parent",
+   "channel": null
+  },
+  {
+   "pop": "/Cells/Single cells/Live/CAR- CD3-",
+   "stat": "% of parent",
+   "channel": null
+  }
+ ],
+ "comp_mode": "file",
+ "custom_comp": null
+}
