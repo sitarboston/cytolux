@@ -66,7 +66,7 @@ class MainWindow(QtWidgets.QMainWindow):
         w1 = QtWidgets.QWidget(); l1 = QtWidgets.QVBoxLayout(w1); l1.setContentsMargins(4, 4, 4, 4)
         l1.addWidget(QtWidgets.QLabel("<b>Samples</b>")); l1.addWidget(self.sample_list)
         w2 = QtWidgets.QWidget(); l2 = QtWidgets.QVBoxLayout(w2); l2.setContentsMargins(4, 4, 4, 4)
-        l2.addWidget(QtWidgets.QLabel("<b>Gates</b> (same gates on every sample; italic = adjusted for this sample)"))
+        l2.addWidget(QtWidgets.QLabel("<b>Gates</b> (new gates go on every sample; italic = adjusted for this sample)"))
         l2.addWidget(self.tree)
         left.addWidget(w1); left.addWidget(w2); left.setSizes([350, 450])
 
@@ -189,6 +189,15 @@ class MainWindow(QtWidgets.QMainWindow):
         a.triggered.connect(lambda: self._step_sample(-1)); tb.addAction(a)
         a = QtGui.QAction(icon("next"), "Next sample", self); a.setShortcut("PgDown")
         a.triggered.connect(lambda: self._step_sample(1)); tb.addAction(a)
+        tb.addSeparator()
+        self.act_local = QtGui.QAction(icon("pointer"), "Edit: this sample", self, checkable=True)
+        self.act_local.setToolTip("On (FlowJo style): dragging a gate changes it for the current sample only.\n"
+                                  "Off: dragging a gate changes it for every sample.  [L]")
+        self.act_local.setShortcut("L")
+        self.act_local.setChecked(self.settings.value("edit_local", True, type=bool))
+        self.act_local.toggled.connect(self._local_toggled)
+        tb.addAction(self.act_local)
+        self._local_toggled(self.act_local.isChecked())
         esc = QtGui.QShortcut(QtGui.QKeySequence("Escape"), self)
         esc.activated.connect(lambda: self.set_tool("pointer"))
 
@@ -354,14 +363,20 @@ class MainWindow(QtWidgets.QMainWindow):
             ev.ignore()
 
     def _add_recent(self, path):
-        rec = [p for p in (self.settings.value("recent") or []) if p != path]
+        rec = [p for p in self._recent() if p != path]
         rec.insert(0, path)
         self.settings.setValue("recent", rec[:8])
         self._fill_recent()
 
+    def _recent(self):
+        v = self.settings.value("recent") or []
+        if isinstance(v, str):          # QSettings returns a lone entry as a plain string
+            v = [v]
+        return [p for p in v if p.endswith(".fgw") and os.path.exists(p)]
+
     def _fill_recent(self):
         self.recent_menu.clear()
-        for p in self.settings.value("recent") or []:
+        for p in self._recent():
             a = self.recent_menu.addAction(p)
             a.triggered.connect(lambda _=False, pp=p: self._safe(lambda: self.open_workspace(pp)))
 
@@ -853,9 +868,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _gate_edited(self, path, gate):
         s = self.cur_sample
-        per_sample = self.ws.has_override(path, s.name)
+        per_sample = self.ws.has_override(path, s.name) or self.act_local.isChecked()
         self.ws.set_gate(path, gate, sname=s.name if per_sample else None)
         self._after_gate_change(redraw=False)
+        if per_sample:
+            self.statusBar().showMessage(f"Gate changed for {s.name} only", 5000)
+
+    def _local_toggled(self, on):
+        self.settings.setValue("edit_local", on)
+        self.act_local.setText("Edit: this sample" if on else "Edit: all samples")
 
     def _after_gate_change(self, redraw=True):
         self._mark()
@@ -1247,7 +1268,9 @@ Backspace goes back up.</p>
 <li>Rectangle / Ellipse: drag. Polygon: click corners, then double-click or Enter.</li>
 <li>Quadrant: click the crossing point. Range: on a histogram (Y = [Histogram]), drag across the peak.</li>
 <li>Edit: drag the gate or its handles with Select (1). Statistics update when you let go.</li>
-<li>One sample needs a different gate? Right-click the gate → "Edits apply to this sample only".</li>
+<li>Editing, FlowJo style: with <b>Edit: this sample</b> on (toolbar, key L), dragging a gate changes it for the
+current sample only; the gate turns italic. Right-click → "Copy this sample's gate to all samples" to push it to all.
+Switch to <b>Edit: all samples</b> to move the gate on every sample at once.</li>
 </ul>
 <p><b>All samples</b> tab: every sample on the current axes with the gates drawn on it.
 <b>Statistics</b> tab: counts and percentages for every sample and gate; Export to Excel.</p>
