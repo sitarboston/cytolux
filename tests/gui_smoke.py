@@ -7,6 +7,8 @@ from flowgate import wsp
 fcs, wspp, out = sys.argv[1:4]
 app = QtWidgets.QApplication(sys.argv)
 QtWidgets.QMessageBox.information = staticmethod(lambda *a, **k: None)
+QtWidgets.QMessageBox.question = staticmethod(  # yes to "add stats then export?", no to "open it now?"
+    lambda *a, **k: QtWidgets.QMessageBox.Yes if "No statistics" in a[2] else QtWidgets.QMessageBox.No)
 QtWidgets.QInputDialog.getText = staticmethod(lambda *a, **k: ("TestGate", True))
 w = MainWindow(); w.resize(1500, 950); w.show()
 w.ws.add_files(sorted(glob.glob(os.path.join(fcs, "*.fcs"))))
