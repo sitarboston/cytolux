@@ -1,8 +1,8 @@
 """Headless GUI run-through on a real dataset. Usage: python -m tests.gui_smoke <fcs_dir> <wsp> <outdir>"""
 import glob, os, sys
 from PySide6 import QtWidgets, QtCore
-from flowgate.app import MainWindow
-from flowgate import wsp
+from cytolux.app import MainWindow
+from cytolux import wsp
 
 fcs, wspp, out = sys.argv[1:4]
 app = QtWidgets.QApplication(sys.argv)
@@ -51,7 +51,7 @@ w.tabs.setCurrentIndex(2); app.processEvents(); shot("07_stats")
 w.tabs.setCurrentIndex(0)
 # save / reload / export
 wf = os.path.join(out, "test.fgw"); w.ws.save(wf)
-from flowgate.engine import Workspace
+from cytolux.engine import Workspace
 ws2 = Workspace.load(wf)
 s = ws2.sample(w.cur_sample.name)
 assert ws2.stats(s) == w.ws.stats(w.ws.sample(s.name)), "reload mismatch"

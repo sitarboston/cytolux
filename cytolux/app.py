@@ -1,4 +1,4 @@
-"""FlowGate main window."""
+"""Cytolux main window."""
 import glob
 import json
 import re
@@ -18,7 +18,7 @@ from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outlin
 from .stats_ui import AddStatDialog, AnnotateDialog, export_excel, fmt_value
 from .plot import GatePlot, LUT, density_levels
 
-APP = "FlowGate"
+APP = "Cytolux"
 HIST = "[Histogram]"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -37,8 +37,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view = {}            # population path -> (x, y) last used axes
         self.fj_counts = None
         self.dirty = False
-        self.settings = QtCore.QSettings("FlowGate", "FlowGate")
-        self.setWindowIcon(icon("flowgate"))
+        self.settings = QtCore.QSettings("Cytolux", "Cytolux")
+        self.setWindowIcon(icon("cytolux"))
         self.resize(1400, 900)
         self._build()
         self._update_title()
@@ -308,7 +308,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             path, _ = QtWidgets.QFileDialog.getOpenFileName(
                 self, "Open workspace", self.settings.value("lastdir", os.path.expanduser("~")),
-                "FlowGate workspace (*.fgw)")
+                "Cytolux workspace (*.fgw)")
         if not path:
             return
         if not self._maybe_save():
@@ -335,7 +335,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if save_as or not path:
             path, _ = QtWidgets.QFileDialog.getSaveFileName(
                 self, "Save workspace", path or os.path.join(self.settings.value("lastdir", os.path.expanduser("~")), "workspace.fgw"),
-                "FlowGate workspace (*.fgw)")
+                "Cytolux workspace (*.fgw)")
             if not path:
                 return False
             if not path.endswith(".fgw"):
@@ -1134,7 +1134,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Save gating template", os.path.join(self.settings.value("lastdir", os.path.expanduser("~")),
-                                                       "gating_template.fgt"), "FlowGate template (*.fgt)")
+                                                       "gating_template.fgt"), "Cytolux template (*.fgt)")
         if not path:
             return
         if not path.endswith(".fgt"):
@@ -1241,7 +1241,7 @@ class MainWindow(QtWidgets.QMainWindow):
         box.setText("<pre>" + "\n".join(lines) + "</pre>"); box.exec()
 
     def show_help(self):
-        QtWidgets.QMessageBox.information(self, "FlowGate quick guide", HELP)
+        QtWidgets.QMessageBox.information(self, "Cytolux quick guide", HELP)
 
 
 class ClickLabel(QtWidgets.QLabel):
@@ -1256,7 +1256,7 @@ class ClickLabel(QtWidgets.QLabel):
         self.clicked.emit(self.idx)
 
 
-HELP = """<h3>FlowGate</h3>
+HELP = """<h3>Cytolux</h3>
 <p><b>Start:</b> File → Open FCS folder, or File → Import FlowJo workspace (.wsp) to bring in your FlowJo gates.</p>
 <p><b>Look:</b> pick the Y and X channels above the plot; choose Linear, Log or Biex for each axis
 (W sets the biex width around zero). Click a population in the gate tree to see the events inside it.
@@ -1281,7 +1281,7 @@ Switch to <b>Edit: all samples</b> to move the gate on every sample at once.</li
 def main():
     QtWidgets.QApplication.setApplicationName(APP)
     app = QtWidgets.QApplication(sys.argv)
-    app.setDesktopFileName("flowgate")
+    app.setDesktopFileName("cytolux")
     w = MainWindow()
     w.show()
     for a in sys.argv[1:]:

@@ -1,8 +1,8 @@
-# FlowGate
+# Cytolux
 
 A desktop app for looking at and gating flow cytometry data (FCS 2.0/3.0/3.1). Local only.
 
-**Start:** FlowGate in the applications menu, or `~/flowgate/flowgate.sh [workspace.fgw | fcs_folder]`.
+**Start:** Cytolux in the applications menu, or `~/cytolux/cytolux.sh [workspace.fgw | fcs_folder]`.
 Press F1 in the app for the quick guide.
 
 - Pseudocolor, dot and histogram plots; Linear, Log and Biex (logicle) axes, biex width set from the data.
@@ -13,4 +13,4 @@ Press F1 in the app for the quick guide.
 - All-samples grid; statistics table; export to Excel and PNG; workspaces saved as .fgw (JSON).
 
 Engine check against FlowJo: `python -m tests.validate_flowjo <fcs_folder> <workspace.wsp>`.
-Environment: conda env `flowgate` (Python 3.12, PySide6, pyqtgraph, FlowKit).
+Requires Python 3.12 with PySide6, pyqtgraph, FlowKit, numpy, scipy and pandas.

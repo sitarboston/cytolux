@@ -1,7 +1,7 @@
 """Import a FlowJo 10 workspace (.wsp): gate geometry and hierarchy per sample.
 
 FlowJo stores rectangle and polygon coordinates in raw (compensated, untransformed) units, and
-ellipses in display units (0..256 on linear axes). Both are converted into FlowGate gates on
+ellipses in display units (0..256 on linear axes). Both are converted into Cytolux gates on
 linear axes scaled 0..1 (raw / $PnR, display / 256), which are the same shapes, exactly.
 """
 import json
@@ -55,7 +55,7 @@ def _attr(el, name):
 
 
 def parse_transforms(sample_el):
-    """FlowJo's per-parameter display transforms -> {channel: FlowGate transform spec}.
+    """FlowJo's per-parameter display transforms -> {channel: Cytolux transform spec}.
     These matter: FlowJo stores gate coordinates against these axes, so a gate bound sitting at
     the bottom of a biex axis means 'everything below', not a hard cut-off."""
     out = {}
@@ -118,8 +118,8 @@ def parse_wsp(path):
     return result
 
 
-def to_flowgate_gate(fj, ranges, xforms=None):
-    """FlowJo gate dict -> FlowGate gate dict, expressed on FlowJo's own display axes.
+def to_cytolux_gate(fj, ranges, xforms=None):
+    """FlowJo gate dict -> Cytolux gate dict, expressed on FlowJo's own display axes.
 
     FlowJo writes rectangle and polygon coordinates as raw (compensated) values and ellipse
     coordinates in display units (0..256). Both are converted into the 0..1 display space of
@@ -194,7 +194,7 @@ def import_into(ws, wsp_path, ranges=None):
         for c, spec in rec.get("transforms", {}).items():
             fj_xforms.setdefault(c, spec)
         for p in rec["populations"]:
-            g = to_flowgate_gate(p["gate"], ranges, rec.get("transforms"))
+            g = to_cytolux_gate(p["gate"], ranges, rec.get("transforms"))
             if g is None:
                 skipped[(p["gate"] or {}).get("type", "none")] += 1
                 continue

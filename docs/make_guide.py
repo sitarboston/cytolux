@@ -1,4 +1,4 @@
-"""Build docs/FlowGate_Step_by_Step.docx from the screenshots made by tests/make_guide_shots.py.
+"""Build docs/Cytolux_Step_by_Step.docx from the screenshots made by tests/make_guide_shots.py.
 Usage: python docs/make_guide.py"""
 import os
 
@@ -11,7 +11,7 @@ from docx.shared import Inches, Pt, RGBColor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHOTS = os.path.join(HERE, "shots")
-OUT = os.path.join(HERE, "FlowGate_Step_by_Step.docx")
+OUT = os.path.join(HERE, "Cytolux_Step_by_Step.docx")
 NAVY = RGBColor(0x1D, 0x2B, 0x4F)
 
 doc = Document()
@@ -114,12 +114,12 @@ def table(rows, widths, header=True):
 
 
 # ------------------------------------------------------------------------------------ cover
-doc.add_paragraph(style="Title").add_run("FlowGate: step by step")
+doc.add_paragraph(style="Title").add_run("Cytolux: step by step")
 p("How to gate an experiment, add statistics, export to Excel, and re-run the same analysis on new "
-  "data. FlowGate runs on this computer only; nothing is uploaded anywhere.", space_after=8)
+  "data. Cytolux runs on this computer only; nothing is uploaded anywhere.", space_after=8)
 
-p("**Start the app:** FlowGate in the applications menu, the FlowGate icon on the Desktop, or "
-  "in a terminal: ~/flowgate/flowgate.sh. Press **F1** inside the app for a one-page reminder.")
+p("**Start the app:** Cytolux in the applications menu, the Cytolux icon on the Desktop, or "
+  "in a terminal: ~/cytolux/cytolux.sh. Press **F1** inside the app for a one-page reminder.")
 p("**Follow along with real data:** the screenshots use public CAR-T data from Good et al., "
   "Nature Medicine 2022 (Figure 6 cohort, BD LSRII). Two practice folders are ready:")
 bullet("~/flowcyt_data/flowgate_demo/**Run1_controls** : 18 control tubes (CAR19 product and "
@@ -127,10 +127,10 @@ bullet("~/flowcyt_data/flowgate_demo/**Run1_controls** : 18 control tubes (CAR19
 bullet("~/flowcyt_data/flowgate_demo/**Run2_patients** : 31 patient samples stained with the same "
        "panel. Used in Part B as the \"new data\".")
 p("The finished example files from this guide (workspace, template and both Excel exports) are in "
-  "~/flowgate/docs/shots/ if you want to compare.", space_after=6)
+  "~/cytolux/docs/shots/ if you want to compare.", space_after=6)
 
 doc.add_heading("The idea in one paragraph", level=2)
-p("You gate once, carefully, on one experiment. FlowGate keeps one gate tree for every sample in "
+p("You gate once, carefully, on one experiment. Cytolux keeps one gate tree for every sample in "
   "the workspace, so each gate you draw applies to all of them at once. You then choose the numbers "
   "you want (counts, percentages, medians), export them, and save the whole recipe as a "
   "**gating template**. Next time, you point the template at a new folder of FCS files and get "
@@ -157,7 +157,7 @@ step(1, "Open the FCS files", [
 shot("A1_opened", "After opening Run1_controls: all events, FSC-A against SSC-A.")
 
 step(2, "Check compensation", [
-    "By default FlowGate uses the spillover matrix the cytometer wrote into each file (FlowJo calls "
+    "By default Cytolux uses the spillover matrix the cytometer wrote into each file (FlowJo calls "
     "this \"acquisition-defined\"). Compensated channels are shown with a **Comp-** prefix, as in FlowJo.",
     "**Compensation → View / edit matrix** shows it; edit a value and press OK to apply it to every sample.",
     "If you made a matrix elsewhere, **Compensation → Load matrix from CSV** (channel names as the header row).",
@@ -175,7 +175,7 @@ step(3, "Give the channels sensible names (optional)", [
 step(4, "Choose the axes and their scales", [
     "Use the **Y** and **X** drop-downs above the plot. Choose **[Histogram]** as Y for a one-parameter plot.",
     "Next to each axis choose **Linear**, **Log** or **Biex**. Scatter channels are linear by default and "
-    "fluorescence channels biex. **W** sets how much room biex gives to the region around zero; FlowGate "
+    "fluorescence channels biex. **W** sets how much room biex gives to the region around zero; Cytolux "
     "picks a starting value from the data.",
     "**Display** switches between pseudocolor and dots.",
 ])
@@ -252,7 +252,7 @@ step(10, "Export", [
     "formatted), **Definitions** (what each column means and which gate and channel it uses), "
     "**All gates** (count, % of parent and % of total for every gate in every sample, in long format) and "
     "**About** (date, workspace, compensation used).",
-    "FlowGate offers to open the file straight away.",
+    "Cytolux offers to open the file straight away.",
     "**Copy table** puts the same table on the clipboard, ready to paste into Prism or Excel.",
     "**File → Export plot as image** saves the current plot as a PNG.",
 ])
@@ -273,7 +273,7 @@ step(1, "Start a new analysis from the template", [
     "**File → New analysis: FCS folder + gating template** (Ctrl+N).",
     "First choose the **template** (.fgt). A saved workspace (.fgw) also works; its gates are used.",
     "Then choose the **folder with the new FCS files**.",
-    "FlowGate loads the files and puts the whole gate tree and the statistics on them. If the new files "
+    "Cytolux loads the files and puts the whole gate tree and the statistics on them. If the new files "
     "lack a channel the template uses, it tells you which, so you can check the panel.",
 ])
 shot("B1_template_applied", "The 31 patient files with the template applied: same gates, numbers already filled in.")
@@ -305,7 +305,7 @@ bullet("**Remove a sample:** right-click it in the sample list → Remove (Ctrl/
 # ------------------------------------------------------------------------------------ part C
 doc.add_heading("Part C. Starting from a FlowJo analysis", level=1)
 bullet("**File → Import FlowJo workspace (.wsp)** brings in FlowJo's gate tree. If the FCS files are "
-       "not open yet, FlowGate looks for them next to the .wsp and asks for the folder if needed.")
+       "not open yet, Cytolux looks for them next to the .wsp and asks for the folder if needed.")
 bullet("**Help → Check against FlowJo counts** compares every population count with the count FlowJo "
        "saved and flags any population that differs by more than the tolerance you set.")
 bullet("Then **Save gating template**, and FlowJo's gates can be used on new runs as in Part B.")
@@ -334,9 +334,9 @@ bullet("**Always look at the FMO or unstained controls** on the All samples tab 
 bullet("**A gate counts 0 in every sample:** the channel it uses is missing from these files, or the "
        "template came from a different panel.")
 bullet("**Diagonal smears between two colors:** compensation is missing or wrong (Step 2).")
-bullet("**Workspace files moved:** a .fgw stores where the FCS files were. If they moved, FlowGate asks "
+bullet("**Workspace files moved:** a .fgw stores where the FCS files were. If they moved, Cytolux asks "
        "for the new folder when you open it.")
-bullet("**Large files:** FlowGate keeps a few samples in memory at a time, so a 96-well plate is fine. "
+bullet("**Large files:** Cytolux keeps a few samples in memory at a time, so a 96-well plate is fine. "
        "The All samples tab takes a few seconds to draw a full plate.")
 
 doc.save(OUT)

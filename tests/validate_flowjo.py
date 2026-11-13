@@ -1,9 +1,9 @@
-"""Check FlowGate's gating engine against FlowJo: import a .wsp, re-gate the raw FCS files,
+"""Check Cytolux's gating engine against FlowJo: import a .wsp, re-gate the raw FCS files,
 compare every population count with the count FlowJo saved in the workspace.
 Usage: python -m tests.validate_flowjo <fcs_folder> <workspace.wsp>"""
 import glob, os, sys, time
-from flowgate.engine import Workspace
-from flowgate import wsp
+from cytolux.engine import Workspace
+from cytolux import wsp
 
 fcs_dir, wsp_path = sys.argv[1], sys.argv[2]
 t0 = time.time()

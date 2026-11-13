@@ -434,7 +434,7 @@ class Workspace:
     # --- save / load
     def to_dict(self):
         return {
-            "format": "flowgate-workspace", "version": 1,
+            "format": "cytolux-workspace", "version": 1,
             "samples": [s.path for s in self.samples],
             "comp_mode": self.comp_mode,
             "custom_comp": None if self.custom_comp is None else
@@ -582,7 +582,7 @@ def stats_table(ws, samples=None):
 # ----------------------------------------------------------------------------- templates
 
 def template_dict(ws):
-    return {"format": "flowgate-template", "version": 1, "pops": ws.pops, "xforms": ws.xforms,
+    return {"format": "cytolux-template", "version": 1, "pops": ws.pops, "xforms": ws.xforms,
             "labels": ws.labels, "stat_defs": ws.stat_defs, "comp_mode": ws.comp_mode,
             "custom_comp": None if ws.custom_comp is None else
             {"channels": ws.custom_comp[0], "matrix": np.asarray(ws.custom_comp[1]).tolist()}}

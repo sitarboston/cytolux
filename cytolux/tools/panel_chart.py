@@ -4,7 +4,7 @@ Everything here is read from the FCS headers themselves ($PnN, $PnS, $PnV, $PnR,
 filter keywords), so it describes what the cytometer actually recorded, not what a protocol said.
 
 Usage:
-    python -m flowgate.tools.panel_chart <folder-or-fcs> [more folders...] -o out_prefix
+    python -m cytolux.tools.panel_chart <folder-or-fcs> [more folders...] -o out_prefix
 Writes <out_prefix>.xlsx (one sheet per experiment plus a combined sheet) and prints the chart.
 """
 import argparse

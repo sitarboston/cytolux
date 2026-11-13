@@ -1,5 +1,5 @@
 {
- "format": "flowgate-template",
+ "format": "cytolux-template",
  "version": 1,
  "pops": [
   {

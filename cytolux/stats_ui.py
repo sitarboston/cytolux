@@ -257,7 +257,7 @@ def export_excel(ws, path, version="0.2"):
             "custom": "custom matrix (loaded or edited)"}[ws.comp_mode]
     about = pd.DataFrame({"Item": ["Exported", "Workspace", "Samples", "Compensation", "Software"],
                           "Value": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), ws.path or "(not saved)",
-                                    len(ws.samples), comp, f"FlowGate {version}"]})
+                                    len(ws.samples), comp, f"Cytolux {version}"]})
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         table.to_excel(xw, sheet_name="Statistics", index=False)
         if len(defs):

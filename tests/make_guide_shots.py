@@ -1,12 +1,12 @@
-"""Drive FlowGate through a full analysis of PUBLIC data (Good et al. 2022, Figure 6) and
+"""Drive Cytolux through a full analysis of PUBLIC data (Good et al. 2022, Figure 6) and
 save screenshots for the step-by-step guide. Usage: python -m tests.make_guide_shots <outdir>"""
 import glob, json, os, sys
 import numpy as np
 from PySide6 import QtWidgets, QtCore
-from flowgate.app import MainWindow
-from flowgate import transforms as tx
-from flowgate.stats_ui import AddStatDialog, AnnotateDialog, export_excel
-from flowgate.engine import stats_table
+from cytolux.app import MainWindow
+from cytolux import transforms as tx
+from cytolux.stats_ui import AddStatDialog, AnnotateDialog, export_excel
+from cytolux.engine import stats_table
 
 out = sys.argv[1]; os.makedirs(out, exist_ok=True)
 DEMO = os.path.expanduser("~/flowcyt_data/flowgate_demo")
@@ -67,7 +67,7 @@ ad.show(); shot("A10_annotate", ad); ad.store(); ad.close()
 w._refresh_table(); shot("A11_statistics_annotated")
 export_excel(w.ws, os.path.join(out, "Run1_statistics.xlsx"))
 w.ws.save(os.path.join(out, "Run1_controls.fgw"))
-from flowgate.engine import template_dict
+from cytolux.engine import template_dict
 json.dump(template_dict(w.ws), open(os.path.join(out, "CAR_T_panel_template.fgt"), "w"), indent=1)
 w.tabs.setCurrentIndex(0); w.dirty = False
 
