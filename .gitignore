@@ -3,3 +3,6 @@ __pycache__/
 *.fgw
 *.xlsx
 docs/shots/*.fgw
+docs/FlowGate_Step_by_Step.docx
+*.~lock.*#
+.~lock.*#
