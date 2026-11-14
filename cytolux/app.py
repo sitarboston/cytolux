@@ -103,7 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_xf_y.currentIndexChanged.connect(lambda: self._xf_changed("y"))
         self.sp_w_x.valueChanged.connect(lambda: self._xf_changed("x"))
         self.sp_w_y.valueChanged.connect(lambda: self._xf_changed("y"))
-        self.cb_mode = QtWidgets.QComboBox(); self.cb_mode.addItems(["Pseudocolor", "Dots"])
+        self.cb_mode = QtWidgets.QComboBox(); self.cb_mode.addItems(["Pseudocolor", "Contour", "Dots"])
         self.cb_mode.currentIndexChanged.connect(self._mode_changed)
         for _w, _k in ((self.sample_list, "sample_list"), (self.tree, "tree"),
                        (self.cb_x, "cb_x"), (self.cb_y, "cb_y"),
@@ -501,10 +501,51 @@ class MainWindow(QtWidgets.QMainWindow):
         if r == QtWidgets.QMessageBox.Yes:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))
 
+    EXPORT_SIZES = [
+        ("Figure panel, 300 dpi (3.5 in wide)", 1050, 300),
+        ("Figure panel, 600 dpi (3.5 in wide)", 2100, 600),
+        ("Full width, 300 dpi (7 in wide)", 2100, 300),
+        ("Full width, 600 dpi (7 in wide)", 4200, 600),
+        ("Slide, 150 dpi (10 in wide)", 1500, 150),
+        ("Screen size", 0, 0),
+    ]
+
     def export_plot(self):
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export plot", "plot.png", "PNG (*.png)")
-        if path:
-            self.plot.export_png(path if path.endswith(".png") else path + ".png")
+        """Save the plot at a size worth putting in a figure.
+
+        Journals ask for 300 dpi at the printed width, so the useful question is which
+        width on the page, not how many pixels. The density grid is rebinned at the
+        chosen size, so a 600 dpi export really carries 600 dpi of data.
+        """
+        if self.plot.ctx is None:
+            QtWidgets.QMessageBox.information(self, APP, "Open a sample and draw a plot first.")
+            return
+        labels = [s[0] for s in self.EXPORT_SIZES]
+        choice, ok = QtWidgets.QInputDialog.getItem(
+            self, "Export plot", "Size and resolution:", labels, 2, False)
+        if not ok:
+            return
+        _, width, dpi = self.EXPORT_SIZES[labels.index(choice)]
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Export plot",
+            os.path.join(self.settings.value("lastdir", os.path.expanduser("~")), "plot.png"),
+            "PNG (*.png)")
+        if not path:
+            return
+        if not path.endswith(".png"):
+            path += ".png"
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            if width:
+                self.plot.export_png(path, width=width, dpi=dpi)
+            else:
+                self.plot.export_png(path, width=int(self.plot.width()), dpi=0)
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        img = QtGui.QImage(path)
+        self.statusBar().showMessage(
+            "Saved %s  (%d x %d px%s)" % (os.path.basename(path), img.width(), img.height(),
+                                          ", %d dpi" % dpi if dpi else ""), 8000)
 
     # ================================================================== compensation / labels
     def set_comp(self, mode):
@@ -679,7 +720,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh()
 
     def _mode_changed(self):
-        self.plot.mode = "density" if self.cb_mode.currentIndex() == 0 else "dots"
+        self.plot.mode = ("density", "contour", "dots")[self.cb_mode.currentIndex()]
         self.refresh()
 
     # ================================================================== tree
@@ -1456,6 +1497,11 @@ Confidence → Find the weakest gates sweeps every sample and sorts worst first.
 
 def main():
     QtWidgets.QApplication.setApplicationName(APP)
+    # Must be set before the QApplication exists. Without it Qt rounds a 150% display
+    # down to 100% and every plot is drawn at two thirds of the resolution the screen
+    # can actually show, which is half of why the pictures looked soft.
+    QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+        QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QtWidgets.QApplication(sys.argv)
     app.setDesktopFileName("cytolux")
     w = MainWindow()

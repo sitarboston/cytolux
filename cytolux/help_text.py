@@ -112,7 +112,7 @@ WIDGET_TIPS = {
     "cb_y": "Channel on the Y axis. Choose [Histogram] to plot a single channel.",
     "cb_xf_x": "How the X axis is scaled. Biex keeps negative events visible near zero.",
     "cb_xf_y": "How the Y axis is scaled. Biex keeps negative events visible near zero.",
-    "cb_mode": "Pseudocolor shades by event density. Dots draws one point per event.",
+    "cb_mode": "Pseudocolor shades by event density. Contour draws black equal-probability lines, the convention in published figures, and stays sharp at any export size. Dots draws one point per event.",
     "uncertainty_run":
         "Run the measurement on this sample. Nothing here recomputes on its own, because two "
         "hundred re-gatings on every mouse release would make gating unusable.",

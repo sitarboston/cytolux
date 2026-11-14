@@ -14,6 +14,7 @@ GATE_PEN = pg.mkPen((0, 0, 0), width=1.6)
 GATE_HOVER = pg.mkPen((220, 30, 30), width=2.2)
 READONLY_PEN = pg.mkPen((90, 90, 90), width=1.4, style=QtCore.Qt.DashLine)
 DRAW_PEN = pg.mkPen((220, 30, 30), width=1.6, style=QtCore.Qt.DashLine)
+CONTOUR_PEN = pg.mkPen((25, 25, 25), width=1.1)
 
 
 def pseudocolor_lut():
@@ -201,11 +202,37 @@ class GatePlot(pg.PlotWidget):
         self.curve = pg.PlotCurveItem(pen=pg.mkPen((40, 40, 120), width=1.5),
                                       brush=pg.mkBrush(120, 140, 220, 120), fillLevel=0)
         self.addItem(self.curve)
+        self.setRenderHints(QtGui.QPainter.Antialiasing |
+                            QtGui.QPainter.TextAntialiasing |
+                            QtGui.QPainter.SmoothPixmapTransform)
         self.gate_items = []
         self.mode = "density"
-        self.bins = 256
+        self.n_contours = 8
+        self.contour_items = []
         self.smooth = True
         self.ctx = None
+        self.bins_override = None     # set only while exporting at a fixed size
+        self.figure_mode = False      # True only while exporting: no editing furniture
+
+    # ------------------------------------------------------------------ resolution
+    MIN_BINS, MAX_BINS = 256, 1024
+
+    def grid_bins(self):
+        """How fine to make the density grid, in bins across the plot.
+
+        The old fixed 256 was the reason plots looked blocky: a 256-wide image stretched
+        across a 900-pixel plot gives every bin three or four screen pixels, and twice
+        that on a high-DPI display, so the eye reads the grid instead of the data. Match
+        the grid to the device pixels actually available and the blocks disappear.
+        """
+        if self.bins_override:
+            return int(self.bins_override)
+        r = self.vb.boundingRect()
+        px = max(r.width(), r.height()) * self.devicePixelRatioF()
+        if px < 2:                       # not laid out yet
+            return self.MIN_BINS
+        n = 1 << max(0, int(math.ceil(math.log2(max(px, 1)))))
+        return int(min(self.MAX_BINS, max(self.MIN_BINS, n)))
 
     # ------------------------------------------------------------------ display
     def show_population(self, ctx):
@@ -218,14 +245,15 @@ class GatePlot(pg.PlotWidget):
         hist = ctx["y"] is None
         self.vb.hist_mode = hist
         self.ax_x.set_spec(ctx["xf_x"])
-        self.setLabel("bottom", ws.label(ctx["x"], s))
+        self.setLabel("bottom", self._axis_label(ws, ctx["x"], s))
         self.image.clear()
         self.scatter.clear()
         self.curve.setData([], [])
+        self._clear_contours()
         if hist:
             self.ax_y.setStyle(showValues=True)
             self.ax_y.set_spec(tx.linear(1))
-            h, edges = np.histogram(np.clip(X, 0, 1), bins=self.bins, range=(0, 1))
+            h, edges = np.histogram(np.clip(X, 0, 1), bins=self.grid_bins(), range=(0, 1))
             if self.smooth and h.size > 5:
                 k = np.array([1, 2, 3, 2, 1], float)
                 h = np.convolve(h, k / k.sum(), mode="same")
@@ -238,13 +266,15 @@ class GatePlot(pg.PlotWidget):
         else:
             Y = tx.apply(ctx["xf_y"], ed.col(ctx["y"])[mask])
             self.ax_y.set_spec(ctx["xf_y"])
-            self.setLabel("left", ws.label(ctx["y"], s))
+            self.setLabel("left", self._axis_label(ws, ctx["y"], s))
             if self.mode == "density":
                 H, _, _ = np.histogram2d(np.clip(X, 0, 1), np.clip(Y, 0, 1),
-                                         bins=self.bins, range=[[0, 1], [0, 1]])
+                                         bins=self.grid_bins(), range=[[0, 1], [0, 1]])
                 lvl = density_levels(H, self.smooth)
                 self.image.setImage(lvl, levels=(0, 255), autoLevels=False)
                 self.image.setRect(QtCore.QRectF(0, 0, 1, 1))
+            elif self.mode == "contour":
+                self._draw_contours(np.clip(X, 0, 1), np.clip(Y, 0, 1))
             else:
                 n = len(X)
                 if n > 60000:
@@ -253,6 +283,56 @@ class GatePlot(pg.PlotWidget):
                 self.scatter.setData(np.clip(X, 0, 1), np.clip(Y, 0, 1))
         self.vb.setRange(xRange=(0, 1), yRange=(0, 1), padding=0.01)
         self._draw_gates()
+
+    # ------------------------------------------------------------------ contours
+    CONTOUR_BINS = 192          # contours are vector paths; they do not need a fine grid
+
+    def _axis_label(self, ws, dim, s):
+        """On screen, name the detector as well as the marker, because that is what you
+        need while gating. In a figure, the detector is noise: a reader wants CD8-APC-A,
+        not Comp-RL1-A :: CD8-APC-A."""
+        full = ws.label(dim, s)
+        return full.split(" :: ")[-1] if self.figure_mode else full
+
+    def _handle_items(self):
+        for it in self.gate_items:
+            for h in getattr(it, "handles", []):
+                item = h.get("item") if isinstance(h, dict) else None
+                if item is not None:
+                    yield item
+
+    def _clear_contours(self):
+        for it in getattr(self, "contour_items", []):
+            self.removeItem(it)
+        self.contour_items = []
+
+    def _draw_contours(self, X, Y):
+        """Equal-probability density contours, with the sparse events left as dots.
+
+        This is the figure convention in the published CAR-T literature: black lines on
+        white, each enclosing a known share of the cells, and the stragglers drawn
+        individually so a rare population is visible rather than smoothed away. Contours
+        are paths rather than pixels, so they stay sharp at any export size, which a
+        pseudocolor image cannot do.
+        """
+        n = self.CONTOUR_BINS
+        H, _, _ = np.histogram2d(X, Y, bins=n, range=[[0, 1], [0, 1]])
+        S = _smooth2d(H, sigma=1.6 * n / 256)
+        levels = contour_levels(S, self.n_contours)
+        scale = QtGui.QTransform().scale(1.0 / n, 1.0 / n).translate(0.5, 0.5)
+        for lv in levels:
+            it = pg.IsocurveItem(data=S, level=lv, pen=CONTOUR_PEN)
+            it.setTransform(scale)
+            it.setZValue(5)
+            self.addItem(it)
+            self.contour_items.append(it)
+        if levels:
+            # events sitting below the outermost contour: too sparse to have been drawn
+            ix = np.clip((X * n).astype(int), 0, n - 1)
+            iy = np.clip((Y * n).astype(int), 0, n - 1)
+            out = S[ix, iy] < levels[0]
+            if out.any():
+                self.scatter.setData(X[out], Y[out])
 
     def _clear_gates(self):
         for it in self.gate_items:
@@ -408,11 +488,69 @@ class GatePlot(pg.PlotWidget):
             return
         self.gate_created.emit(tool, geom)
 
-    def export_png(self, path):
+    def export_png(self, path, width=3000, dpi=300, figure=True):
+        """Export at a size worth putting in a figure, not a screenshot of the window.
+
+        `figure` strips the editing furniture: drag handles come off the gates and the
+        axes lose their detector prefixes, so what lands in the file is a figure rather
+        than a picture of the application.
+
+        The density grid is recomputed at the export size first. Without that, enlarging
+        the picture only enlarges the blocks: the resolution of a density plot is the
+        resolution of the grid it was binned on, not the size of the canvas it is
+        painted onto. The PNG is then stamped with its real dpi, so Word and Illustrator
+        place it at the right physical size instead of guessing at 96.
+        """
         from pyqtgraph.exporters import ImageExporter
-        ex = ImageExporter(self.getPlotItem())
-        ex.parameters()["width"] = 1400
-        ex.export(path)
+        old, old_fig = self.bins_override, self.figure_mode
+        try:
+            self.bins_override = int(min(2048, max(self.MIN_BINS, width)))
+            self.figure_mode = bool(figure)
+            if self.ctx is not None:
+                self.show_population(self.ctx)
+            if self.figure_mode:
+                # The square drag handles belong to editing, not to the data. Leaving
+                # them in is the difference between a screenshot and a figure.
+                for h in self._handle_items():
+                    h.setVisible(False)
+            ex = ImageExporter(self.getPlotItem())
+            ex.parameters()["width"] = int(width)
+            ex.export(path)
+        finally:
+            self.bins_override, self.figure_mode = old, old_fig
+            if self.ctx is not None:
+                self.show_population(self.ctx)
+        if dpi:
+            img = QtGui.QImage(path)
+            if not img.isNull():
+                per_m = int(round(dpi / 0.0254))
+                img.setDotsPerMeterX(per_m)
+                img.setDotsPerMeterY(per_m)
+                img.save(path)
+        return path
+
+
+def contour_levels(S, n=8):
+    """Density thresholds that enclose equally spaced shares of the events.
+
+    Contours at evenly spaced *densities* crowd into the peak and say nothing about
+    where the cells are. Contours at evenly spaced *probabilities* each enclose a known
+    fraction, so the spacing of the lines is itself the shape of the distribution,
+    which is how these figures are meant to be read.
+    """
+    v = S[S > 0].ravel()
+    if v.size < 2:
+        return []
+    order = np.sort(v)[::-1]
+    cum = np.cumsum(order)
+    cum /= cum[-1]
+    out = []
+    for f in np.linspace(1.0 / (n + 1), n / (n + 1.0), n):
+        i = int(np.searchsorted(cum, f))
+        lv = float(order[min(i, order.size - 1)])
+        if not out or lv < out[-1]:
+            out.append(lv)
+    return sorted(out)
 
 
 def density_levels(H, smooth=True):
