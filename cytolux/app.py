@@ -817,7 +817,7 @@ class MainWindow(QtWidgets.QMainWindow):
             m.exec(gpos)
         elif path == "root":
             m = QtWidgets.QMenu(self)
-            m.addAction("Σ Add statistic for all events…", lambda: self.add_stat(["root"]))
+            self._add_stat_submenu(m, "root")
             m.exec(gpos)
         else:
             self._pop_menu(path, gpos)
@@ -826,7 +826,7 @@ class MainWindow(QtWidgets.QMainWindow):
         s = self.cur_sample
         m = QtWidgets.QMenu(self)
         m.addAction("Open this population", lambda: self._select_pop(path))
-        m.addAction("Σ Add statistic for this population…", lambda: self.add_stat([path]))
+        self._add_stat_submenu(m, path)
         m.addAction("Rename…", lambda: self._rename(path))
         m.addAction("Delete (with its sub-gates)", lambda: self._delete(path))
         m.addSeparator()
@@ -1172,6 +1172,59 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.horizontalHeader().setMinimumSectionSize(70)
 
     # ================================================================== statistics
+    QUICK_STATS = ["Median", "Mean", "Geometric mean", "SD", "CV", "Robust CV"]
+
+    def _add_stat_submenu(self, menu, path):
+        """FlowJo's right-click route to a statistic: pick it, pick a channel, done.
+
+        The dialog is still there under "More…", and it is the better tool for adding
+        the same statistic to twelve populations at once. But the common case is one
+        population and one marker, and that should not cost a dialog. The two channels
+        currently on the axes come first, because they are nearly always the ones
+        wanted, with the rest of the panel underneath.
+        """
+        sub = menu.addMenu("Σ Add statistic")
+        sub.setToolTipsVisible(True)
+        for st in ("Count", "% of parent", "% of total"):
+            act = sub.addAction(st, lambda s=st: self._quick_stat(path, s))
+            act.setToolTip(STATS[st][1])
+        sub.addSeparator()
+        chans = self._stat_channels()
+        for st in self.QUICK_STATS:
+            if not chans:
+                break
+            ch_menu = sub.addMenu(st)
+            ch_menu.setToolTipsVisible(True)
+            for ch, label, on_axis in chans:
+                act = ch_menu.addAction(label, lambda s=st, c=ch: self._quick_stat(path, s, c))
+                act.setToolTip(STATS[st][1])
+                if on_axis:
+                    f = act.font(); f.setBold(True); act.setFont(f)
+            ch_menu.setToolTip(STATS[st][1])
+        sub.addSeparator()
+        sub.addAction("More statistics…", lambda: self.add_stat([path]))
+
+    def _stat_channels(self):
+        """(channel, label, is_on_an_axis) for the panel, axes first."""
+        s = self.cur_sample
+        if s is None:
+            return []
+        on_axis = [c for c in (self.cb_x.currentData(), self.cb_y.currentData()) if c]
+        out = [(c, self.ws.label(c, s).split(" :: ")[-1], True) for c in on_axis]
+        seen = set(on_axis)
+        rest = [(c, self.ws.label(c, s).split(" :: ")[-1], False)
+                for c in self.ws.display_channels(s) if c not in seen]
+        return out + rest
+
+    def _quick_stat(self, path, stat, channel=None):
+        d = {"pop": path, "stat": stat, "channel": channel}
+        if any(json.dumps(x, sort_keys=True) == json.dumps(d, sort_keys=True)
+               for x in self.ws.stat_defs):
+            self.statusBar().showMessage("That column is already in the table", 4000)
+            return
+        self.ws.stat_defs.append(d)
+        self._stats_changed("Added %s" % stat_name(d, self.ws, self.cur_sample))
+
     def add_stat(self, preselect=None):
         if self.cur_sample is None:
             return
