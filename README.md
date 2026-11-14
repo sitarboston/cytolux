@@ -23,6 +23,28 @@ the app out of the checkout, so `git pull` updates it. `./install.sh --uninstall
 **Start:** Cytolux in the applications menu, `cytolux [workspace.fgw | fcs_folder]`,
 or `~/cytolux/cytolux.sh`. Press F1 in the app for the quick guide.
 
+## Test data: three FCS files are in this repository
+
+**You do not need to find your own data to try this.** Three real FCS files ship in
+[`testdata/`](testdata/), so a fresh clone has something to open immediately:
+
+| File | Events | What it is |
+|---|---|---|
+| [`testdata/Human_Mock.fcs`](testdata/Human_Mock.fcs) | 102,699 | untreated control |
+| [`testdata/Human_ConditionA.fcs`](testdata/Human_ConditionA.fcs) | 89,317 | treated, higher dose |
+| [`testdata/Human_ConditionB.fcs`](testdata/Human_ConditionB.fcs) | 129,615 | treated, lower dose |
+
+In vitro CAR-T on human T cells, 23 channels, CAR read on tEGFR-PE against
+CD4, CD8, CD5 and a viability dye. `$SPILLOVER` is in every file, so compensation
+from file works with no setup.
+
+Open all three at once:
+
+    cytolux testdata/
+
+[`testdata/README.md`](testdata/README.md) gives the full panel, a gate tree that
+works on it, and exactly which keywords were stripped during de-identification.
+
 ## What it does
 
 - Pseudocolor, dot and histogram plots; Linear, Log and Biex (logicle) axes, biex width set from the data.
