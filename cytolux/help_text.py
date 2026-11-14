@@ -1,0 +1,128 @@
+"""One source of truth for in-app help.
+
+TIPS feeds hover tooltips. TOPICS feeds the built-in assistant, so a question
+about a feature and the tooltip on that feature can never drift apart.
+"""
+
+# Keyed by the exact menu action text, so a renamed action fails the test
+# rather than silently losing its tooltip.
+MENU_TIPS = {
+    "Open FCS folder…":
+        "Open every .fcs file in a folder as a new analysis. Replaces what is currently open.",
+    "Add FCS files…":
+        "Add more .fcs files to the analysis you already have open. They inherit the existing gates.",
+    "Open workspace…":
+        "Reopen a saved .fgw analysis: its samples, gates, axes and statistics.",
+    "Save workspace":
+        "Save samples, gates, axes, statistics and annotations to the current .fgw file.",
+    "Save workspace as…":
+        "Save the analysis to a new .fgw file, leaving the original untouched.",
+    "Import FlowJo workspace (.wsp)…":
+        "Read a FlowJo 10 workspace and rebuild its gate tree here. Gates keep the axes FlowJo "
+        "drew them on. Use Help, Check against FlowJo counts afterwards to confirm the numbers agree.",
+    "Save gating template…":
+        "Save just the gate tree and axis settings, with no samples, as a .fgt template you can "
+        "apply to future runs of the same panel.",
+    "Apply gating template to these samples…":
+        "Apply a saved .fgt gate tree to the samples already open. Check every gate level before "
+        "trusting the numbers: voltages and staining drift between runs.",
+    "New analysis: FCS folder + gating template…":
+        "Start a fresh analysis in one step: pick a folder of .fcs files and a .fgt template.",
+    "Export statistics to Excel…":
+        "Write the statistics table to .xlsx, with sheets for your table, the definitions, every "
+        "gate count, and the settings used.",
+    "Export plot as image…":
+        "Save the plot currently on screen as a .png.",
+    "Quit":
+        "Close Cytolux. You are asked first if the workspace has unsaved changes.",
+    "Use the matrix stored in the files (FlowJo: acquisition-defined)":
+        "Compensate using the spillover matrix the cytometer wrote into each .fcs file. This is "
+        "what FlowJo calls acquisition-defined, and it is the right default.",
+    "No compensation":
+        "Show raw uncompensated values. Useful for checking single-stain controls, misleading for "
+        "anything else.",
+    "Load matrix from CSV…":
+        "Use a spillover matrix from a .csv instead of the one in the files. First row and column "
+        "are channel names.",
+    "View / edit matrix…":
+        "Inspect the active spillover matrix and adjust coefficients by hand. Diagonal smears "
+        "between two colours mean compensation is wrong.",
+    "Rename channels (marker names)…":
+        "Give channels readable marker names, so axes read CD3 rather than Comp-V710-A.",
+    "Delete selected gate":
+        "Delete the selected population and every gate underneath it. This cannot be undone.",
+    "Annotate samples (donor, dose…)…":
+        "Add your own columns, such as Donor or Dose, to each sample. They travel into the "
+        "statistics export so the table is analysis-ready.",
+    "Add statistic…":
+        "Add a column to the statistics table: frequency of parent, count, median, geometric mean, "
+        "percentile and others, for any population and channel.",
+    "Quick guide":
+        "A one-page reminder of the workflow and every keyboard shortcut.",
+    "Check against FlowJo counts":
+        "Compare every population count with the count FlowJo saved in the imported workspace, and "
+        "flag any that differ by more than your tolerance. This is how you prove the gating agrees.",
+}
+
+TAB_TIPS = {
+    "Gating": "Draw and edit gates on the current sample.",
+    "All samples": "Every sample on the same two axes, as a grid. Click any plot to open that sample.",
+    "Statistics": "The numbers from your gates for every sample, ready to export to Excel.",
+}
+
+WIDGET_TIPS = {
+    "sample_list": "Every open sample. Click to view it; PageUp and PageDown step through.",
+    "tree": "The gate hierarchy, with the count, % of parent and % of total for the current sample. "
+            "Italic means this sample has its own adjusted copy of that gate.",
+    "cb_x": "Channel on the X axis.",
+    "cb_y": "Channel on the Y axis. Choose [Histogram] to plot a single channel.",
+    "cb_xf_x": "How the X axis is scaled. Biex keeps negative events visible near zero.",
+    "cb_xf_y": "How the Y axis is scaled. Biex keeps negative events visible near zero.",
+    "cb_mode": "Pseudocolor shades by event density. Dots draws one point per event.",
+    "prev_sample": "Go to the previous sample [PageUp]",
+    "next_sample": "Go to the next sample [PageDown]",
+}
+
+# Short task-oriented answers for the built-in assistant. Kept here, next to the
+# tooltips, so the two cannot disagree.
+TOPICS = [
+    ("import a FlowJo workspace, reuse FlowJo gates, open a .wsp",
+     "File, Import FlowJo workspace (.wsp). The gate tree comes across on the axes FlowJo drew it "
+     "on. Then run Help, Check against FlowJo counts to confirm every population agrees."),
+    ("compensation, spillover, diagonal smear between two colours",
+     "The Compensation menu. The default uses the matrix stored in each .fcs file, which is "
+     "FlowJo's acquisition-defined. You can load a .csv matrix instead or edit coefficients by "
+     "hand. A diagonal smear between two colours almost always means compensation is wrong."),
+    ("reuse gates on a new run, gating template, apply the same gates",
+     "Save the tree with File, Save gating template, then File, New analysis: FCS folder + gating "
+     "template for the next run. Templates assume the same panel and similar voltages, so check "
+     "every gate level before exporting."),
+    ("export numbers, Excel, statistics table",
+     "Add columns with Edit, Add statistic, then File, Export statistics to Excel. The workbook "
+     "also carries the definitions, every gate count and the settings used."),
+    ("gate applies to one sample only, per-sample gate, adjust one sample",
+     "The 'Edit: this sample' button in the toolbar, shortcut L. On, dragging a gate changes only "
+     "the current sample and the tree shows it in italic. Off, dragging changes every sample."),
+    ("negative values, events pile up at the axis, log axis hides cells",
+     "Switch the axis to Biex. A log axis cannot show zero or negative events, so they pile onto "
+     "the edge. Biex gives the region around zero its own space; the W box sets how much."),
+    ("draw a gate, rectangle, polygon, ellipse, quadrant, histogram range",
+     "Pick a tool from the toolbar, keys 1 to 6. Polygon: click the corners and close with "
+     "double-click, Enter, or by clicking the first point. Quadrant: click the crossing point. "
+     "Range works on a histogram, so set Y to [Histogram] first."),
+    ("rename a channel, marker names, axis says Comp-V710-A",
+     "Edit, Rename channels, to map detectors onto marker names so the axes read CD3 rather than "
+     "Comp-V710-A."),
+    ("add donor or dose columns, sample metadata, annotate",
+     "Edit, Annotate samples. The columns you add travel into the Excel export alongside the "
+     "statistics."),
+    ("see every sample at once, overview, plate",
+     "The All samples tab shows every sample on the current two axes. Click any plot to jump to "
+     "that sample."),
+    ("a gate counts zero on every sample",
+     "The channel that gate uses is missing from these files, or the template came from a "
+     "different panel. Check the axis names against the channels in the file."),
+    ("set a positive cutoff, where to put the gate, FMO",
+     "Look at the FMO or unstained control on the All samples tab before trusting a positive gate. "
+     "The Percentile statistic on an FMO, the 99th for example, gives an objective cut-off."),
+]

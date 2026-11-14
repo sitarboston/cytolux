@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import transforms as tx
 from . import wsp
+from .help_text import MENU_TIPS, TAB_TIPS, WIDGET_TIPS
 from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
                      stat_name, stats_table, template_dict)
 from .stats_ui import AddStatDialog, AnnotateDialog, export_excel, fmt_value
@@ -95,6 +96,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sp_w_y.valueChanged.connect(lambda: self._xf_changed("y"))
         self.cb_mode = QtWidgets.QComboBox(); self.cb_mode.addItems(["Pseudocolor", "Dots"])
         self.cb_mode.currentIndexChanged.connect(self._mode_changed)
+        for _w, _k in ((self.sample_list, "sample_list"), (self.tree, "tree"),
+                       (self.cb_x, "cb_x"), (self.cb_y, "cb_y"),
+                       (self.cb_xf_x, "cb_xf_x"), (self.cb_xf_y, "cb_xf_y"),
+                       (self.cb_mode, "cb_mode")):
+            _w.setToolTip(WIDGET_TIPS[_k])
         self.lbl_info = QtWidgets.QLabel()
         bar = QtWidgets.QGridLayout()
         bar.addWidget(QtWidgets.QLabel("Y"), 0, 0); bar.addWidget(self.cb_y, 0, 1)
@@ -152,6 +158,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.addTab(ptab, "Gating")
         self.tabs.addTab(otab, "All samples")
         self.tabs.addTab(stab, "Statistics")
+        for _i in range(self.tabs.count()):
+            self.tabs.setTabToolTip(_i, TAB_TIPS.get(self.tabs.tabText(_i), ""))
         self.tabs.currentChanged.connect(self._tab_changed)
 
         split = QtWidgets.QSplitter()
@@ -186,8 +194,10 @@ class MainWindow(QtWidgets.QMainWindow):
         a.setToolTip("Go up to the parent population [Backspace]")
         a.triggered.connect(self._go_parent); tb.addAction(a)
         a = QtGui.QAction(icon("prev"), "Prev sample", self); a.setShortcut("PgUp")
+        a.setToolTip(WIDGET_TIPS["prev_sample"])
         a.triggered.connect(lambda: self._step_sample(-1)); tb.addAction(a)
         a = QtGui.QAction(icon("next"), "Next sample", self); a.setShortcut("PgDown")
+        a.setToolTip(WIDGET_TIPS["next_sample"])
         a.triggered.connect(lambda: self._step_sample(1)); tb.addAction(a)
         tb.addSeparator()
         self.act_local = QtGui.QAction(icon("pointer"), "Edit: this sample", self, checkable=True)
@@ -202,7 +212,7 @@ class MainWindow(QtWidgets.QMainWindow):
         esc.activated.connect(lambda: self.set_tool("pointer"))
 
         # ---- menus
-        m = self.menuBar().addMenu("&File")
+        m = self.menuBar().addMenu("&File"); m.setToolTipsVisible(True)
         self._act(m, "Open FCS folder…", self.open_folder, "Ctrl+O")
         self._act(m, "Add FCS files…", self.add_files)
         m.addSeparator()
@@ -223,24 +233,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self._fill_recent()
         m.addSeparator()
         self._act(m, "Quit", self.close, "Ctrl+Q")
-        m = self.menuBar().addMenu("&Compensation")
+        m = self.menuBar().addMenu("&Compensation"); m.setToolTipsVisible(True)
         self._act(m, "Use the matrix stored in the files (FlowJo: acquisition-defined)", lambda: self.set_comp("file"))
         self._act(m, "No compensation", lambda: self.set_comp("none"))
         self._act(m, "Load matrix from CSV…", self.load_comp_csv)
         self._act(m, "View / edit matrix…", self.edit_comp)
-        m = self.menuBar().addMenu("&Edit")
+        m = self.menuBar().addMenu("&Edit"); m.setToolTipsVisible(True)
         self._act(m, "Rename channels (marker names)…", self.edit_labels)
         self._act(m, "Delete selected gate", self._delete_selected, "Delete")
         self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
         self._act(m, "Add statistic…", lambda: self.add_stat(), "Ctrl+T")
-        m = self.menuBar().addMenu("&Help")
+        m = self.menuBar().addMenu("&Help"); m.setToolTipsVisible(True)
         self._act(m, "Quick guide", self.show_help, "F1")
         self._act(m, "Check against FlowJo counts", self.show_fj_check)
 
-    def _act(self, menu, text, fn, shortcut=None):
+    def _act(self, menu, text, fn, shortcut=None, tip=None):
         a = QtGui.QAction(text, self)
         if shortcut:
             a.setShortcut(shortcut)
+        tip = tip or MENU_TIPS.get(text)
+        if tip:
+            if shortcut:
+                tip = "%s  [%s]" % (tip, shortcut)
+            a.setToolTip(tip)
+            a.setStatusTip(tip)
         a.triggered.connect(lambda _=False: self._safe(fn))
         menu.addAction(a)
         return a
