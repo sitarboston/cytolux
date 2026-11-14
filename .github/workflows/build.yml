@@ -74,7 +74,7 @@ jobs:
         id: ver
         shell: bash
         run: |
-          v=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          v=$(python -c "import cytolux;print(cytolux.__version__)")
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "Building version $v"
       - name: Build
