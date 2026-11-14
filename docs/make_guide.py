@@ -228,6 +228,10 @@ step(8, "Lay the samples over each other", [
     "**Export figure** writes the plot at 300 dpi on white, ready for a slide or a paper.",
 ])
 
+shot("A7b_overlay", "Overlay tab: every control tube on the CAR channel at once. The CAR FMO and the "
+                     "healthy donor sit left of the transduced tubes, and the legend gives n and the "
+                     "median for each.")
+
 step(9, "Choose your statistics", [
     "Open the **Statistics** tab. Each column is one number for every sample.",
     "**Count + % of parent for every gate** adds the usual set in one click.",

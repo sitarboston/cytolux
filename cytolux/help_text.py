@@ -110,6 +110,8 @@ WIDGET_TIPS = {
     "tree": "The gate hierarchy, with the count, % of parent and % of total for the current sample. "
             "Italic means this sample has its own adjusted copy of that gate.",
     "cb_x": "Channel on the X axis.",
+    "ask": "Ask how to do something, in your own words. Searches the built-in guide; "
+           "nothing leaves this machine.  [Ctrl+/]",
     "cb_y": "Channel on the Y axis. Choose [Histogram] to plot a single channel.",
     "cb_xf_x": "How the X axis is scaled. Biex keeps negative events visible near zero.",
     "cb_xf_y": "How the Y axis is scaled. Biex keeps negative events visible near zero.",

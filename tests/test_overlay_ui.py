@@ -121,17 +121,29 @@ def test_changing_normalisation_redraws_what_is_on_screen(win):
     assert win.overlay.plot.getPlotItem().getAxis("left").labelText == "Count"
 
 
-def test_the_legend_keeps_off_the_data(win):
-    """Right-heavy curves put the key on the left, and the other way round."""
+def test_the_legend_goes_to_the_emptier_edge(win):
+    """The bug this is here for: the key was placed on the side the curves occupied,
+    so with many curves it sat on top of the positive peak."""
     _pick(win.overlay)
     win.overlay.cb_source.setCurrentIndex(1)
     win.overlay.draw()
-    right_heavy = win.overlay._busy_side()
-    assert right_heavy in ("left", "right")
-    flipped = []
-    for s in win.overlay.series:                    # mirror every curve
-        s.y = s.y[::-1].copy()
-    assert win.overlay._busy_side() != right_heavy, "the key would sit on the data"
+    x = win.overlay.series[0].x
+    for s in win.overlay.series:                    # everything crowded to the right
+        s.y = np.where(x > 0.8, 100.0, 0.0)
+    assert win.overlay._free_side() == "left"
+    for s in win.overlay.series:                    # and now to the left
+        s.y = np.where(x < 0.2, 100.0, 0.0)
+    assert win.overlay._free_side() == "right"
+
+
+def test_the_legend_is_drawn_on_the_side_it_chose(win):
+    import pyqtgraph as pg
+    _pick(win.overlay)
+    win.overlay.cb_source.setCurrentIndex(1)
+    win.overlay.draw()
+    key = [i for i in win.overlay.plot.getPlotItem().items if isinstance(i, pg.TextItem)]
+    assert len(key) == 1, "expected one legend block when overlaid"
+    assert (key[0].pos().x() > 0.5) == (win.overlay._free_side() == "right")
 
 
 def test_the_table_matches_the_curves(win):

@@ -239,21 +239,29 @@ def test_both_biexponentials_are_named_for_what_they_are(win):
     from PySide6 import QtCore
     for cb in (win.cb_xf_x, win.cb_xf_y):
         items = [cb.itemText(i) for i in range(cb.count())]
-        assert items == ["Linear", "Log", "Biex (logicle)", "Biex (FlowJo's own)"]
+        assert items == ["Linear", "Log", "Biex (logicle)", "Biex (as imported)"]
         biex = [t for t in items if t.startswith("Biex")]
         assert len(set(biex)) == 2, "the two biex entries read the same"
         for i in (2, 3):
             tip = cb.itemData(i, QtCore.Qt.ToolTipRole)
             assert tip, "%r carries no explanation" % cb.itemText(i)
         assert "logicle" in cb.itemData(2, QtCore.Qt.ToolTipRole).lower()
-        assert "FlowJo" in cb.itemData(3, QtCore.Qt.ToolTipRole)
+        assert "imported" in cb.itemData(3, QtCore.Qt.ToolTipRole)
 
 
-def test_the_flowjo_entry_says_it_differs_from_logicle(win):
+def test_the_imported_entry_says_it_differs_from_logicle(win):
     """Whoever reads the tooltip should learn why the two are not interchangeable."""
     from PySide6 import QtCore
     tip = win.cb_xf_x.itemData(3, QtCore.Qt.ToolTipRole)
     assert "Not the same function as logicle" in tip
+
+
+def test_no_control_in_the_interface_is_named_after_another_product(win):
+    """Cytolux reads other people's workspaces; it does not advertise them on its
+    own controls."""
+    for cb in (win.cb_xf_x, win.cb_xf_y, win.cb_mode):
+        for i in range(cb.count()):
+            assert "flowjo" not in cb.itemText(i).lower()
 
 
 def test_picking_each_scale_sets_the_transform_it_names(win_with_data):

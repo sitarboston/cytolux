@@ -48,6 +48,15 @@ w._gate_created("quad", (D("Comp-R670-A", 1500), D("Comp-V710-A", 4000)))
 w.sample_list.setCurrentRow(0); w._select_pop("/Cells/Single cells/Live"); shot("A6_quadrant")
 w.tabs.setCurrentIndex(1); shot("A7_all_samples"); w.tabs.setCurrentIndex(0)
 
+# the overlay: every control tube on the CAR channel, laid over each other
+w.tabs.setCurrentIndex(2)
+w.overlay.refresh_channels()
+w.overlay.cb_channel.setCurrentIndex(w.overlay.cb_channel.findData("Comp-R670-A"))
+w.overlay.cb_source.setCurrentIndex(1)
+w.overlay.draw()
+shot("A7b_overlay")
+w.tabs.setCurrentIndex(0)
+
 # statistics
 quad_cd3pos = [p["path"] for p in w.ws.pops if p["name"].endswith("CD3+")]
 dlg = AddStatDialog(w.ws, w.cur_sample, w, preselect=quad_cd3pos, channel="Comp-R670-A")

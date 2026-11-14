@@ -201,7 +201,7 @@ class OverlayTab(QtWidgets.QWidget):
             r, g, b = s.colour
             html += "<div style='color:rgb(%d,%d,%d)'>%s</div>" % (r, g, b, s.legend_text())
         html += "</div>"
-        right = self._busy_side() == "left"
+        right = self._free_side() == "right"
         t = pg.TextItem(html="", anchor=(1, 0) if right else (0, 0))
         t.setHtml(html)
         top = max((s.y.max() for s in self.series), default=1.0)
@@ -209,24 +209,23 @@ class OverlayTab(QtWidgets.QWidget):
         self.plot.addItem(t)
         vb.update()
 
-    def _busy_side(self):
-        """Which half of the plot the curves actually occupy.
+    LEGEND_BAND = 0.30
 
-        A legend pinned to one corner spends half its life sitting on the data. The
-        curves say where they are, so the key goes to the other side.
+    def _free_side(self):
+        """Which outer band of the plot the curves leave free: where the key goes.
+
+        Not the centre of mass: with modal normalisation a negative and a positive
+        peak both reach the top, and the mean between them lands in the middle and
+        decides nothing. The key only needs a band at one edge, so the question is
+        which edge has less drawn in it.
         """
-        w = 0.0
-        tot = 0.0
+        lo = hi = 0.0
         for s in self.series:
-            y = np.asarray(s.y, float)
             x = np.asarray(s.x, float)
-            m = y.sum()
-            if m > 0:
-                w += float((x * y).sum() / m) * m
-                tot += m
-        if tot <= 0:
-            return "left"
-        return "right" if (w / tot) > 0.5 else "left"
+            y = np.asarray(s.y, float)
+            lo += float(y[x <= self.LEGEND_BAND].sum())
+            hi += float(y[x >= 1.0 - self.LEGEND_BAND].sum())
+        return "left" if lo <= hi else "right"
 
     # ---------------------------------------------------------------- export
     def export(self, path=None, width=2400, dpi=300):

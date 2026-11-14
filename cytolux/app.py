@@ -92,16 +92,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_x, self.cb_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self.cb_xf_x, self.cb_xf_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         for cb in (self.cb_xf_x, self.cb_xf_y):
-            cb.addItems(["Linear", "Log", "Biex (logicle)", "Biex (FlowJo's own)"])
+            cb.addItems(["Linear", "Log", "Biex (logicle)", "Biex (as imported)"])
             cb.setItemData(2, "Logicle, the published biexponential (Parks, Roederer and Moore, "
                               "2006). The W box sets how much of the axis goes to the region "
                               "around zero. Off-scale negative events stay visible below zero.",
                            QtCore.Qt.ToolTipRole)
-            cb.setItemData(3, "FlowJo 10's own biexponential, with the exact parameters it saved "
-                              "for this channel in the imported .wsp. Not the same function as "
-                              "logicle: it folds everything below about -132 onto zero rather "
-                              "than showing it. Pick this when a plot has to line up with "
-                              "FlowJo's, and logicle otherwise.", QtCore.Qt.ToolTipRole)
+            cb.setItemData(3, "The biexponential carried in the workspace this analysis was "
+                              "imported from, with the exact parameters it saved for this "
+                              "channel. Not the same function as logicle: it folds everything "
+                              "below about -132 onto zero rather than showing it. Pick this when "
+                              "a plot has to line up with the one it came from, and logicle "
+                              "otherwise.", QtCore.Qt.ToolTipRole)
         self.sp_w_x, self.sp_w_y = QtWidgets.QDoubleSpinBox(), QtWidgets.QDoubleSpinBox()
         for sp in (self.sp_w_x, self.sp_w_y):
             sp.setRange(0.0, 2.0); sp.setSingleStep(0.1); sp.setDecimals(2); sp.setPrefix("W ")
@@ -230,6 +231,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_local.toggled.connect(self._local_toggled)
         tb.addAction(self.act_local)
         self._local_toggled(self.act_local.isChecked())
+        tb.addSeparator()
+        # The assistant was reachable only from the Help menu, where nobody looking
+        # for a search box thinks to look. It gets a button.
+        self.act_ask = QtGui.QAction(icon("ask"), "Ask", self)
+        self.act_ask.setToolTip(WIDGET_TIPS["ask"])
+        self.act_ask.triggered.connect(self.show_assistant)
+        tb.addAction(self.act_ask)
         esc = QtGui.QShortcut(QtGui.QKeySequence("Escape"), self)
         esc.activated.connect(lambda: self.set_tool("pointer"))
 
@@ -718,7 +726,7 @@ class MainWindow(QtWidgets.QMainWindow):
             spec = tx.linear(T)
         elif kind == "log":
             spec = tx.log(T)
-        elif kind.startswith("biex (flowjo"):
+        elif kind.startswith("biex (as imported"):
             if old["kind"] == "wspbiex":
                 return
             spec = tx.wspbiex(T, width=-10.0, positive=4.5 + math.log10(T / 262144.0))
