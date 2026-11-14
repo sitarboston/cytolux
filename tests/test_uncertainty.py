@@ -299,7 +299,23 @@ def test_a_missing_channel_is_reported_as_unknown_not_as_a_crash():
     attach(ws, FakeSample("plain.fcs", islands(n=2000)))
     u = gate_uncertainty(ws, ws.samples[0], n=10)
     assert u["/Ghost"].count.value == 0
+    assert u["/Ghost"].grade == "unknown", \
+        "a gate that was never evaluated must not grade firm on its stable zero"
     assert u["/Ghost/Below"].grade == "unknown"
+    assert np.isnan(u["/Ghost"].parent_pct.value)
+
+
+def test_a_population_that_is_genuinely_empty_is_not_called_unknown():
+    """The distinction the test above depends on. A real gate that happens to catch
+    nothing is a measurement, and a confident one; a gate that could not be evaluated
+    is not a measurement at all. Both show a count of zero."""
+    ws = Workspace()
+    ws.add_pop("root", "Empty", thresh(5.0))      # far above any event, but on a real channel
+    attach(ws, FakeSample("plain.fcs", islands(n=2000)))
+    pu = gate_uncertainty(ws, ws.samples[0], n=20)["/Empty"]
+    assert pu.count.value == 0
+    assert pu.parent_pct.value == 0.0
+    assert pu.grade == "firm"
 
 
 # --- the Spread value object --------------------------------------------------------
@@ -503,3 +519,16 @@ def test_fragility_report_reports_progress_and_can_be_stopped(smear_ws):
     df = fragility_report(smear_ws, n=10, progress=progress)
     assert seen == [(0, 3), (1, 3), (2, 3)]
     assert set(df["Sample"]) == {"smear.fcs", "smear2.fcs"}, "partial work was discarded"
+
+
+def test_counting_error_is_undefined_when_the_frequency_is():
+    """Guards the subtler half of the missing-channel case. A count of zero gives a
+    binomial standard error of exactly zero, which is the most confident answer there
+    is, and would have overridden the gate's own 'I could not measure this'."""
+    pu = PopUncertainty(path="/P", count=Spread(0.0, 0, 0, 0),
+                        parent_pct=Spread(float("nan"), float("nan"), float("nan"),
+                                          float("nan")),
+                        total_pct=Spread(float("nan"), 0, 0, 0), parent_n=5000)
+    assert np.isnan(pu.counting_half_width)
+    assert np.isnan(pu.combined_half_width)
+    assert pu.grade == "unknown"

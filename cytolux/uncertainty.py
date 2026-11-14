@@ -192,7 +192,10 @@ class PopUncertainty:
         This is the floor no amount of careful gating gets below.
         """
         n = self.parent_n
-        if not n:
+        if not n or np.isnan(self.parent_pct.value):
+            # No parent to be a fraction of, or no frequency at all: a population that
+            # was never evaluated has no standard error either, and returning a
+            # confident zero here would make the combined grade read "firm".
             return float("nan")
         p = self.count.value / n
         if p < 0.0 or p > 1.0:
@@ -318,6 +321,13 @@ def gate_uncertainty(ws, s, n=DEFAULT_N, sigma=DEFAULT_SIGMA, level=DEFAULT_LEVE
             pp = np.where(par > 0, 100.0 * c / np.maximum(par, 1), np.nan)
             tp = np.where(root > 0, 100.0 * c / np.maximum(root, 1), np.nan)
         b = base_stats.get(path, (0, float("nan"), float("nan")))
+        if path != "root" and vals.get(path) is None:
+            # The gate names a channel this file does not carry, so it was never
+            # really evaluated. Its count is a stable zero, which would otherwise
+            # grade "firm": the most confident possible answer about a population
+            # that could not be measured at all.
+            pp = tp = np.full(n, np.nan)
+            b = (b[0], float("nan"), float("nan"))
         par_path = parent_of.get(path, "root")
         out[path] = PopUncertainty(
             path=path,
