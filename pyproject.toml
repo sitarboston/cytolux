@@ -34,4 +34,4 @@ cytolux = ["icons/*.svg"]
 testpaths = ["tests"]
 # A broken plugin in the user site-packages can abort the whole run before any
 # test executes. Ignore third-party plugins we do not use.
-addopts = "-p no:langsmith -p no:anyio"
+addopts = "-p no:langsmith_plugin"
