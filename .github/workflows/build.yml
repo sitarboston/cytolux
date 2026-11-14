@@ -70,6 +70,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      - name: Read the version from pyproject.toml
+        id: ver
+        shell: bash
+        run: |
+          v=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Building version $v"
       - name: Build
         run: >
           pyinstaller --noconfirm --clean --windowed --name Cytolux
@@ -101,8 +108,89 @@ jobs:
           else
             ./dist/Cytolux/Cytolux
           fi
-      - uses: actions/upload-artifact@v4
+
+      # ---------------------------------------------------------------- installers
+      # The steps above produce a folder someone has to know what to do with. These
+      # produce the one file per platform that a person double-clicks.
+
+      - name: Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: cmd
+        # iscc ships with the windows-latest image, so there is nothing to install.
+        run: iscc /DAppVersion=${{ steps.ver.outputs.version }} packaging\cytolux.iss
+
+      - name: macOS disk image
+        if: runner.os == 'macOS'
+        run: packaging/make_dmg.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Linux AppImage
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y -qq zsync desktop-file-utils
+          packaging/make_appimage.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Checksum the installer
+        shell: bash
+        run: |
+          cd installer
+          for f in *; do
+            case "$f" in *.sha256) continue;; esac
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$f" > "$f.sha256"
+            else
+              shasum -a 256 "$f" > "$f.sha256"
+            fi
+          done
+          ls -lh
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-installer
+          path: installer/
+          retention-days: 90
+
+      - name: Upload the unpacked bundle
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: dist/
           retention-days: 30
+
+  # A tag starting with v publishes the three installers as a GitHub release, so
+  # the download links are permanent instead of 90-day CI artifacts.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-installer"
+          path: installers
+          merge-multiple: true
+      - name: What we are about to publish
+        run: ls -lhR installers
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*
+          generate_release_notes: true
+          draft: false
+          body: |
+            ## Install
+
+            | Platform | File | How |
+            |---|---|---|
+            | Windows 10/11, 64-bit | `Cytolux-*-windows-x64-setup.exe` | Run it. Installs per-user, so no administrator password. Windows SmartScreen will warn that the publisher is unknown: choose More info, then Run anyway. |
+            | macOS, Apple silicon | `Cytolux-*-macos-arm64.dmg` | Open it and drag Cytolux to Applications. The build is ad-hoc signed, not notarized, so the first launch needs a right-click then Open. |
+            | Linux, x86_64 | `Cytolux-*-x86_64.AppImage` | `chmod +x` it and run it. Add `--install` once to put it in the applications menu. |
+
+            Each file has a matching `.sha256` for verification.
+
+            Neither the Windows nor the macOS build carries a paid code-signing
+            certificate, which is why both operating systems warn on first launch.

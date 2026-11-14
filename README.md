@@ -2,8 +2,28 @@
 
 A desktop app for looking at and gating flow cytometry data (FCS 2.0/3.0/3.1). Local only.
 
-**Start:** Cytolux in the applications menu, or `~/cytolux/cytolux.sh [workspace.fgw | fcs_folder]`.
-Press F1 in the app for the quick guide.
+## Install
+
+Download the file for your platform from the
+[latest release](https://github.com/sitarboston/cytolux/releases/latest).
+
+| Platform | File | What to do |
+|---|---|---|
+| Windows 10/11, 64-bit | `Cytolux-*-windows-x64-setup.exe` | Run it. It installs for your user only, so it never asks for an administrator password. SmartScreen will say the publisher is unknown: More info, then Run anyway. |
+| macOS, Apple silicon | `Cytolux-*-macos-arm64.dmg` | Open it, drag Cytolux to Applications. First launch: right-click the app, then Open. |
+| Linux, x86_64 | `Cytolux-*-x86_64.AppImage` | `chmod +x Cytolux-*.AppImage`, then run it. Run it once with `--install` to add it to the applications menu. |
+
+Neither the Windows nor the macOS build is code-signed, which is why both warn on
+first launch. Every file has a matching `.sha256`.
+
+**From this source tree instead:** `./install.sh` adds the applications-menu entry,
+the icons, a `cytolux` command and the `.fgw` and `.fcs` file associations. It runs
+the app out of the checkout, so `git pull` updates it. `./install.sh --uninstall` reverses it.
+
+**Start:** Cytolux in the applications menu, `cytolux [workspace.fgw | fcs_folder]`,
+or `~/cytolux/cytolux.sh`. Press F1 in the app for the quick guide.
+
+## What it does
 
 - Pseudocolor, dot and histogram plots; Linear, Log and Biex (logicle) axes, biex width set from the data.
 - Rectangle, polygon, ellipse, quadrant and range gates; drag to edit; gate tree with counts, % parent, % total.
@@ -21,3 +41,11 @@ Press F1 in the app for the quick guide.
 
 Engine check against FlowJo: `python -m tests.validate_flowjo <fcs_folder> <workspace.wsp>`.
 Requires Python 3.12 with PySide6, pyqtgraph, FlowKit, numpy, scipy and pandas.
+
+## Building the installers
+
+Pushing a `v*` tag runs `.github/workflows/build.yml`, which tests, builds the
+PyInstaller bundle on each platform, packages it, and attaches the three installers
+to a GitHub release. The packaging steps are `packaging/cytolux.iss` (Inno Setup),
+`packaging/make_dmg.sh` and `packaging/make_appimage.sh`, each runnable by hand after
+PyInstaller has written `dist/`.

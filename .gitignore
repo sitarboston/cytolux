@@ -12,3 +12,4 @@ dist/
 *.spec
 .pytest_cache/
 .venv/
+installer/
