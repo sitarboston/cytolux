@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import transforms as tx
 from . import wsp
+from .assistant import NO_MATCH, Assistant
 from .help_text import MENU_TIPS, TAB_TIPS, WIDGET_TIPS
 from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
                      stat_name, stats_table, template_dict)
@@ -244,6 +245,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
         self._act(m, "Add statistic…", lambda: self.add_stat(), "Ctrl+T")
         m = self.menuBar().addMenu("&Help"); m.setToolTipsVisible(True)
+        self._act(m, "Find how to do something…", self.show_assistant, "Ctrl+/",
+                  tip="Search the built-in help in plain language. Works offline, "
+                      "and never sends anything anywhere.")
         self._act(m, "Quick guide", self.show_help, "F1")
         self._act(m, "Check against FlowJo counts", self.show_fj_check)
 
@@ -1255,6 +1259,51 @@ class MainWindow(QtWidgets.QMainWindow):
                      "gates you edit here are exact.")
         box = QtWidgets.QMessageBox(self); box.setWindowTitle("Check against FlowJo")
         box.setText("<pre>" + "\n".join(lines) + "</pre>"); box.exec()
+
+    def show_assistant(self):
+        """A dockable, offline help search. No network, no account, no key."""
+        if getattr(self, "_assist_dock", None) is None:
+            self._assistant = Assistant()
+            dock = QtWidgets.QDockWidget("Find how to do something", self)
+            dock.setObjectName("assistant")
+            body = QtWidgets.QWidget()
+            lay = QtWidgets.QVBoxLayout(body)
+            box = QtWidgets.QLineEdit()
+            box.setPlaceholderText("Ask in your own words, for example: how do I export to Excel")
+            box.setClearButtonEnabled(True)
+            box.setToolTip("Type a question. Results update as you type. Everything stays on "
+                           "this computer.")
+            out = QtWidgets.QTextBrowser()
+            out.setOpenExternalLinks(False)
+            hint = QtWidgets.QLabel(
+                "Try: " + " · ".join(self._assistant.suggestions()[:4]))
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color: palette(mid);")
+            lay.addWidget(box); lay.addWidget(out); lay.addWidget(hint)
+            dock.setWidget(body)
+            self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+            box.textChanged.connect(lambda t: out.setHtml(self._assistant_html(t)))
+            self._assist_dock, self._assist_box, self._assist_out = dock, box, out
+            out.setHtml(self._assistant_html(""))
+        self._assist_dock.show()
+        self._assist_dock.raise_()
+        self._assist_box.setFocus()
+        self._assist_box.selectAll()
+
+    def _assistant_html(self, question):
+        import html as _html
+        if not (question or "").strip():
+            return ("<p style='color:gray'>Type a question above. The answers come from this "
+                    "application's own help, so nothing leaves your computer.</p>")
+        hits = self._assistant.ask(question)
+        if not hits:
+            return "<p style='color:gray'>%s</p>" % _html.escape(NO_MATCH)
+        parts = []
+        for h in hits:
+            where = ("<div style='color:#2a6'><b>%s</b></div>" % _html.escape(h.where)) if h.where else ""
+            parts.append("<p><b>%s</b>%s<br>%s</p>"
+                         % (_html.escape(h.title), where, _html.escape(h.body)))
+        return "".join(parts)
 
     def show_help(self):
         QtWidgets.QMessageBox.information(self, "Cytolux quick guide", HELP)

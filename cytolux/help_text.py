@@ -64,6 +64,28 @@ MENU_TIPS = {
         "flag any that differ by more than your tolerance. This is how you prove the gating agrees.",
 }
 
+# Keyboard shortcuts, so the assistant can answer "what is the shortcut for X".
+SHORTCUTS = {
+    "Open FCS folder": "Ctrl+O",
+    "Open workspace": "Ctrl+Shift+O",
+    "Save workspace": "Ctrl+S",
+    "Save workspace as": "Ctrl+Shift+S",
+    "Import FlowJo workspace": "Ctrl+I",
+    "New analysis from template": "Ctrl+N",
+    "Export statistics to Excel": "Ctrl+E",
+    "Add statistic": "Ctrl+T",
+    "Quit": "Ctrl+Q",
+    "Quick guide": "F1",
+    "Delete the selected gate": "Delete",
+    "Go up to the parent population": "Backspace",
+    "Previous sample": "PageUp",
+    "Next sample": "PageDown",
+    "Edit this sample only, on or off": "L",
+    "Select, Rectangle, Polygon, Ellipse, Quadrant, Range tools": "1 to 6",
+    "Cancel drawing and go back to Select": "Esc",
+    "Close a polygon": "Enter",
+}
+
 TAB_TIPS = {
     "Gating": "Draw and edit gates on the current sample.",
     "All samples": "Every sample on the same two axes, as a grid. Click any plot to open that sample.",
@@ -122,6 +144,10 @@ TOPICS = [
     ("a gate counts zero on every sample",
      "The channel that gate uses is missing from these files, or the template came from a "
      "different panel. Check the axis names against the channels in the file."),
+    ("keyboard shortcut, hotkey, key binding",
+     "Press F1 for the full list. The ones worth memorising: Ctrl+S saves, Ctrl+E exports to "
+     "Excel, Ctrl+T adds a statistic, keys 1 to 6 pick a gate tool, Backspace goes up to the "
+     "parent population, and PageUp and PageDown step through samples."),
     ("set a positive cutoff, where to put the gate, FMO",
      "Look at the FMO or unstained control on the All samples tab before trusting a positive gate. "
      "The Percentile statistic on an FMO, the 99th for example, gives an objective cut-off."),
