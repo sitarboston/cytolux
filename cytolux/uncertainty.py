@@ -342,7 +342,7 @@ def _spread(value, draws, half):
 
 
 def fragility_report(ws, samples=None, n=DEFAULT_N, sigma=DEFAULT_SIGMA,
-                     level=DEFAULT_LEVEL, seed=0, include_root=False):
+                     level=DEFAULT_LEVEL, seed=0, include_root=False, progress=None):
     """One row per sample and population: the frequency, its interval, and its grade.
 
     This is the view that earns the feature. Run it on a finished workspace and the
@@ -350,6 +350,10 @@ def fragility_report(ws, samples=None, n=DEFAULT_N, sigma=DEFAULT_SIGMA,
     numbers reach a figure. Each sample gets its own stream of random numbers, derived
     from `seed` and the sample's position, so adding a sample never changes an existing
     sample's answer.
+
+    `progress(done, total)` is called before each sample and may return True to stop
+    early, which returns the samples finished so far rather than nothing: a long run on
+    a big workspace is worth keeping when the user has seen enough.
 
     Read "Limited by" before acting on a row. A fragile row limited by counting is not
     a badly drawn gate, it is a population too rare to have been measured at this event
@@ -359,15 +363,21 @@ def fragility_report(ws, samples=None, n=DEFAULT_N, sigma=DEFAULT_SIGMA,
     samples = samples or ws.samples
     rows = []
     for k, s in enumerate(samples):
+        if progress is not None and progress(k, len(samples)):
+            break
         u = gate_uncertainty(ws, s, n=n, sigma=sigma, level=level, seed=seed + 7919 * k)
         for path, pu in u.items():
             if path == "root" and not include_root:
                 continue
             comb = pu.combined
+            # Verdict first. The grade and what to do about it are what the reader
+            # came for; the full gating path is reference and goes last, or it pushes
+            # everything that matters off the right-hand edge of the window.
             rows.append({
                 "Sample": s.name,
                 "Population": pu.name,
-                "Path": path,
+                "Grade": pu.grade,
+                "Limited by": pu.limited_by,
                 "Count": pu.count.value,
                 "% of parent": pu.parent_pct.value,
                 "Low": comb.lo,
@@ -376,9 +386,8 @@ def fragility_report(ws, samples=None, n=DEFAULT_N, sigma=DEFAULT_SIGMA,
                 "Relative": comb.relative,
                 "Gate half width": pu.parent_pct.half_width,
                 "Counting half width": pu.counting_half_width,
-                "Limited by": pu.limited_by,
                 "Bias": pu.parent_pct.bias,
-                "Grade": pu.grade,
+                "Path": path,
             })
     df = pd.DataFrame(rows)
     if len(df):

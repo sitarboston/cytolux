@@ -18,6 +18,7 @@ from .help_text import MENU_TIPS, TAB_TIPS, WIDGET_TIPS
 from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
                      stat_name, stats_table, template_dict)
 from .stats_ui import AddStatDialog, AnnotateDialog, export_excel, fmt_value
+from .uncertainty_ui import FragilityDialog, UncertaintyDock
 from .plot import GatePlot, LUT, density_levels
 
 APP = "Cytolux"
@@ -258,6 +259,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act(m, "Delete selected gate", self._delete_selected, "Delete")
         self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
         self._act(m, "Add statistic…", lambda: self.add_stat(), "Ctrl+T")
+        m = self.menuBar().addMenu("Confide&nce"); m.setToolTipsVisible(True)
+        self._act(m, "Measure confidence for this sample", self.show_confidence, "Ctrl+U")
+        self._act(m, "Find the weakest gates in this workspace…", self.show_fragility)
         m = self.menuBar().addMenu("&Help"); m.setToolTipsVisible(True)
         self._act(m, "Find how to do something…", self.show_assistant, "Ctrl+/",
                   tip="Search the built-in help in plain language. Works offline, "
@@ -293,6 +297,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def _mark(self):
         self.dirty = True
         self._update_title()
+        # Any edit may have moved a boundary, so measured intervals no longer describe
+        # what is on screen. Blanking them is deliberate: an interval that silently
+        # followed a moved gate would be worse than none.
+        if getattr(self, "_conf_dock", None) is not None:
+            self._conf_panel.set_stale()
 
     # ================================================================== files
     def open_folder(self):
@@ -576,6 +585,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cur_sample = None
             return
         self.cur_sample = self.ws.samples[row]
+        if getattr(self, "_conf_dock", None) is not None:
+            self._conf_panel.set_sample(self.cur_sample)
         self._fill_axes()
         self._fill_tree()
         self.refresh()
@@ -1322,6 +1333,38 @@ class MainWindow(QtWidgets.QMainWindow):
         box = QtWidgets.QMessageBox(self); box.setWindowTitle("Check against FlowJo")
         box.setText("<pre>" + "\n".join(lines) + "</pre>"); box.exec()
 
+    def show_confidence(self):
+        """Per-sample confidence, docked beside the gating tree.
+
+        Opens blank. The measurement is a second or two of work and gating is a
+        continuous activity, so it runs when asked rather than on every mouse release.
+        """
+        if not self.ws.samples:
+            QtWidgets.QMessageBox.information(self, APP, "Open some samples first.")
+            return
+        if getattr(self, "_conf_dock", None) is None:
+            panel = UncertaintyDock(self.ws, self)
+            panel.btn.clicked.connect(panel.run)
+            dock = QtWidgets.QDockWidget("Confidence", self)
+            dock.setObjectName("confidence")
+            dock.setWidget(panel)
+            self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+            self._conf_dock, self._conf_panel = dock, panel
+        self._conf_panel.ws = self.ws
+        self._conf_panel.set_sample(self.cur_sample)
+        self._conf_dock.show()
+        self._conf_dock.raise_()
+
+    def show_fragility(self):
+        """The workspace-wide report: which gate is the weakest, across every sample."""
+        if not self.ws.samples:
+            QtWidgets.QMessageBox.information(self, APP, "Open some samples first.")
+            return
+        if not self.ws.pops:
+            QtWidgets.QMessageBox.information(self, APP, "Draw at least one gate first.")
+            return
+        FragilityDialog(self.ws, self).exec()
+
     def show_assistant(self):
         """A dockable, offline help search. No network, no account, no key."""
         if getattr(self, "_assist_dock", None) is None:
@@ -1401,6 +1444,12 @@ Switch to <b>Edit: all samples</b> to move the gate on every sample at once.</li
 </ul>
 <p><b>All samples</b> tab: every sample on the current axes with the gates drawn on it.
 <b>Statistics</b> tab: counts and percentages for every sample and gate; Export to Excel.</p>
+<p><b>Confidence</b> (Ctrl+U): a frequency is a count divided by a line you drew with a mouse.
+Cytolux moves every boundary by about as much as a careful hand would, re-gates the file, and reports
+how far each percentage travelled. Green means quote it, amber means quote the interval with it, red
+means fix something first. "Limited by" says which something: <b>gate</b> means redraw it,
+<b>counting</b> means too few cells landed in the population and only more events will help.
+Confidence → Find the weakest gates sweeps every sample and sorts worst first.</p>
 <p><b>Save</b> the workspace (Ctrl+S) as a .fgw file; it remembers files, compensation, gates and axes.</p>
 <p>Compensation uses the matrix written into the FCS files by default (FlowJo's "acquisition-defined").</p>"""
 

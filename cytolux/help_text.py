@@ -59,6 +59,13 @@ MENU_TIPS = {
     "Add statistic…":
         "Add a column to the statistics table: frequency of parent, count, median, geometric mean, "
         "percentile and others, for any population and channel.",
+    "Measure confidence for this sample":
+        "Move every gate by about as much as a careful hand would, re-gate this file, and report "
+        "how far each frequency travelled. Separates a number you can quote from one that is an "
+        "artifact of where the line landed.",
+    "Find the weakest gates in this workspace…":
+        "The same measurement across every sample, sorted weakest first, so the gate that cannot "
+        "carry the weight being put on it turns up before the numbers reach a figure.",
     "Quick guide":
         "A one-page reminder of the workflow and every keyboard shortcut.",
     "Check against FlowJo counts":
@@ -78,6 +85,7 @@ SHORTCUTS = {
     "Add statistic": "Ctrl+T",
     "Quit": "Ctrl+Q",
     "Quick guide": "F1",
+    "Measure confidence for this sample": "Ctrl+U",
     "Delete the selected gate": "Delete",
     "Go up to the parent population": "Backspace",
     "Previous sample": "PageUp",
@@ -105,6 +113,22 @@ WIDGET_TIPS = {
     "cb_xf_x": "How the X axis is scaled. Biex keeps negative events visible near zero.",
     "cb_xf_y": "How the Y axis is scaled. Biex keeps negative events visible near zero.",
     "cb_mode": "Pseudocolor shades by event density. Dots draws one point per event.",
+    "uncertainty_run":
+        "Run the measurement on this sample. Nothing here recomputes on its own, because two "
+        "hundred re-gatings on every mouse release would make gating unusable.",
+    "uncertainty_sigma":
+        "How precisely you place a boundary, as a percentage of the axis. One percent is a careful "
+        "hand on a familiar panel. Raise it to ask what a sloppier day would cost. The same "
+        "fraction applies on a biexponential axis as on a linear one.",
+    "uncertainty_reps":
+        "How many times to re-gate the file. More runs give a steadier interval and take "
+        "proportionally longer. Two hundred is plenty to read a grade off; use more if the "
+        "interval itself is going into a figure.",
+    "uncertainty_level":
+        "How much of the spread the interval covers. 95 % is the usual choice and means what a "
+        "confidence interval means everywhere else.",
+    "uncertainty_only_bad":
+        "Hide the populations that held still, leaving only the ones worth looking at.",
     "sample_filter": "Type part of a sample name to narrow the list. Useful on a full plate.",
     "prev_sample": "Go to the previous sample [PageUp]",
     "next_sample": "Go to the next sample [PageDown]",
@@ -163,4 +187,26 @@ TOPICS = [
     ("set a positive cutoff, where to put the gate, FMO",
      "Look at the FMO or unstained control on the All samples tab before trusting a positive gate. "
      "The Percentile statistic on an FMO, the 99th for example, gives an objective cut-off."),
+    ("how certain is this percentage, error bars on a frequency, confidence interval, how much "
+     "can my gate move the number",
+     "Confidence, Measure confidence for this sample. Every boundary in the tree is moved by about "
+     "as much as a careful hand would place it, the file is re-gated from the root, and the spread "
+     "of each frequency is reported. Green means quote the number as it stands, amber means quote "
+     "the interval with it, red means fix something first."),
+    ("which of my gates is weakest, which number should I not trust, check the gating before "
+     "publishing",
+     "Confidence, Find the weakest gates in this workspace. It runs the same measurement on every "
+     "sample and sorts worst first, so you do not have to guess which gate to check. The Limited "
+     "by column says whether to redraw the gate or acquire more events."),
+    ("my population has very few events, is thirty cells enough, rare population, small count",
+     "The confidence report separates the two reasons a frequency is shaky. Gate error means the "
+     "boundary is in the wrong place and redrawing it would help. Counting error means too few "
+     "cells landed in the population and only acquiring more would help. A tiny population with a "
+     "perfect gate still grades fragile, because thirty is thirty."),
+    ("what do firm soft and fragile mean, what is the grade column",
+     "Three words for how much weight a number will carry. firm: the interval is inside 5 % of "
+     "the frequency, or under 0.05 percentage points, so quote it. fragile: the interval reaches "
+     "25 % of the frequency, or 5 percentage points, so fix something first. soft: in between, so "
+     "quote the interval beside it. They are conventions rather than findings, and the hand "
+     "steadiness setting moves all of them."),
 ]

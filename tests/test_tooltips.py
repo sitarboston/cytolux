@@ -101,11 +101,17 @@ def test_tab_tips_match_the_real_tabs(win):
 
 
 def test_widget_tips_are_all_used():
+    """Every tip must be attached to a real widget somewhere in the interface.
+
+    Scans every module that builds UI, not just app.py, or a tip written for a panel
+    that lives in its own module would look unused and a dead one would hide there.
+    """
     import inspect
     from cytolux import app as appmod
-    src = inspect.getsource(appmod)
+    from cytolux import stats_ui, uncertainty_ui
+    src = "".join(inspect.getsource(m) for m in (appmod, stats_ui, uncertainty_ui))
     unused = [k for k in WIDGET_TIPS if '"%s"' % k not in src]
-    assert not unused, "WIDGET_TIPS keys never referenced in app.py: %s" % unused
+    assert not unused, "WIDGET_TIPS keys never attached to a widget: %s" % unused
 
 
 @pytest.mark.parametrize("keys,answer", TOPICS, ids=[t[0][:28] for t in TOPICS])

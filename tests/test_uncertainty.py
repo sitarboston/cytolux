@@ -9,74 +9,12 @@ and the intervals have to come back different by a wide margin.
 import numpy as np
 import pytest
 
-from cytolux import transforms as tx
-from cytolux.engine import EventData, Workspace
+from cytolux.engine import Workspace
 from cytolux.uncertainty import (DEFAULT_SIGMA, PopUncertainty, Spread, fragility_report,
                                  gate_uncertainty, perturb_gate)
 
-T = 262144.0
-LIN = tx.linear(T)
-
-
-class FakeSample:
-    """A sample backed by arrays instead of a file, so the tests own their event data."""
-
-    def __init__(self, name, cols):
-        self.name = name
-        self.path = "/nonexistent/" + name
-        self.channels = list(cols)
-        self._raw = np.column_stack([np.asarray(cols[c], dtype=float) for c in self.channels])
-        self.markers = {c: "" for c in self.channels}
-        self.ranges = {c: T for c in self.channels}
-        self.spill_channels = None
-        self.spill = None
-        self.event_count = self._raw.shape[0]
-
-    def raw(self):
-        return self._raw
-
-
-def rect(lo, hi, dims=("A", "B")):
-    n = len(dims)
-    return {"type": "rect", "dims": list(dims), "xf": [dict(LIN) for _ in range(n)],
-            "min": [lo] * n, "max": [hi] * n}
-
-
-def attach(ws, sample):
-    ws.samples.append(sample)
-    ws._events[sample.name] = EventData(sample, None)
-    return sample
-
-
-# --- two shapes of data, and they are the whole argument -----------------------------
-#
-# "islands": two tight clusters with empty space between them. A gate drawn in that
-# empty space can be moved and the count does not change.
-#
-# "smear": one broad continuum. Any gate drawn inside it sits on events, so moving it
-# trades events across the boundary and the count changes.
-
-LOW, HIGH, TIGHT = 0.08, 0.95, 0.004      # display-space centres and width
-
-
-def islands(n=20000, seed=1, frac_high=0.10):
-    """A tenth of the events in a tight cluster high, the rest in a tight cluster low."""
-    rng = np.random.default_rng(seed)
-    hi = int(round(n * frac_high))
-    xy = np.vstack([rng.normal(LOW * T, TIGHT * T, (n - hi, 2)),
-                    rng.normal(HIGH * T, TIGHT * T, (hi, 2))])
-    return {"A": xy[:, 0], "B": xy[:, 1]}
-
-
-def smear(n=20000, seed=2):
-    rng = np.random.default_rng(seed)
-    return {"A": rng.uniform(0.0, T, n), "B": rng.uniform(0.0, T, n)}
-
-
-def thresh(lo, dim="A"):
-    """A one-sided threshold on a single marker, which is how a positive population is
-    actually gated, and the case where boundary placement matters most."""
-    return {"type": "rect", "dims": [dim], "xf": [dict(LIN)], "min": [lo], "max": [None]}
+from helpers import (HIGH, LIN, LOW, T, TIGHT, FakeSample, attach, islands, rect,
+                     smear, thresh)
 
 
 # Both fixtures report about ten percent positive. The gates differ only in where the
@@ -527,10 +465,11 @@ def test_a_rare_population_in_a_continuum_is_limited_by_the_gate(smear_ws):
 
 def test_the_report_carries_both_kinds_of_doubt(smear_ws):
     df = fragility_report(smear_ws, n=30)
-    assert list(df.columns) == ["Sample", "Population", "Path", "Count", "% of parent",
-                                "Low", "High", "Half width", "Relative",
-                                "Gate half width", "Counting half width", "Limited by",
-                                "Bias", "Grade"]
+    assert list(df.columns) == ["Sample", "Population", "Grade", "Limited by", "Count",
+                                "% of parent", "Low", "High", "Half width", "Relative",
+                                "Gate half width", "Counting half width", "Bias", "Path"]
+    assert list(df.columns).index("Grade") < list(df.columns).index("Count"), \
+        "the verdict must be visible without scrolling"
     assert set(df["Limited by"]) <= {"gate", "counting", "unknown"}
 
 
@@ -550,3 +489,17 @@ def test_the_combined_interval_falls_back_when_one_part_is_undefined():
                         total_pct=Spread(5.0, 4.0, 6.0, 5.0), parent_n=0)
     assert np.isnan(pu.counting_half_width)
     assert pu.combined_half_width == pytest.approx(1.0)
+
+
+def test_fragility_report_reports_progress_and_can_be_stopped(smear_ws):
+    attach(smear_ws, FakeSample("smear2.fcs", smear(seed=5)))
+    attach(smear_ws, FakeSample("smear3.fcs", smear(seed=6)))
+    seen = []
+
+    def progress(done, total):
+        seen.append((done, total))
+        return done >= 2            # stop before the third sample
+
+    df = fragility_report(smear_ws, n=10, progress=progress)
+    assert seen == [(0, 3), (1, 3), (2, 3)]
+    assert set(df["Sample"]) == {"smear.fcs", "smear2.fcs"}, "partial work was discarded"
