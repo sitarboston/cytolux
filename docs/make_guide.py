@@ -213,7 +213,22 @@ step(7, "Check every sample", [
 shot("A7_all_samples", "All samples tab, Live population on CAR against CD3: the CAR FMO and healthy "
                        "tubes sit left of the CAR line, as they should.")
 
-step(8, "Choose your statistics", [
+step(8, "Lay the samples over each other", [
+    "The **Overlay** tab answers the question a grid of plots cannot: did this marker move?",
+    "Pick the **channel**, then what to lay over what: the samples you selected in the list, the whole "
+    "plate, or every gate inside the sample you have open.",
+    "**Normalise to mode** is the default. Every curve peaks at the same height, so the shapes compare "
+    "even when one population has ten times the cells of another. This is what FlowJo calls modal. "
+    "**Normalise to area** draws a smaller population as a shorter curve; **Raw count** shows the sizes.",
+    "**Stacked** offsets the curves up the page, which stays readable past about six samples. Overlaid is "
+    "better for two or three.",
+    "Each curve carries its own **n, median and mean** in the legend, in raw units: the same numbers the "
+    "Statistics tab gives, so the picture and the table agree. A curve under 100 events is called out as "
+    "thin, because a smooth curve drawn from sixty cells still looks convincing.",
+    "**Export figure** writes the plot at 300 dpi on white, ready for a slide or a paper.",
+])
+
+step(9, "Choose your statistics", [
     "Open the **Statistics** tab. Each column is one number for every sample.",
     "**Count + % of parent for every gate** adds the usual set in one click.",
     "**Σ Add statistic** opens the dialog below: (1) pick one or more populations, (2) pick the statistic, "
@@ -236,7 +251,7 @@ table([
     ["Percentile", "Intensity at a percentile you choose (for example the 99th, for an FMO cut-off)"],
 ], [2.0, 4.8])
 
-step(9, "Describe the samples (optional, but saves time in Excel)", [
+step(10, "Describe the samples (optional, but saves time in Excel)", [
     "**Annotate samples** opens a small spreadsheet with one row per sample. **Add column** (Donor, Dose, "
     "Condition, Timepoint…) and type values in.",
     "Faster: copy a block from Excel, click the first cell and press **Ctrl+V**. Or **Import from "
@@ -247,7 +262,7 @@ step(9, "Describe the samples (optional, but saves time in Excel)", [
 shot("A10_annotate", "Two annotation columns, Group and Tube.", width=5.4)
 shot("A11_statistics_annotated", "The finished table: annotations first, then one column per statistic.")
 
-step(10, "Export", [
+step(11, "Export", [
     "**Export to Excel** (Ctrl+E) writes a workbook with four sheets: **Statistics** (your table, "
     "formatted), **Definitions** (what each column means and which gate and channel it uses), "
     "**All gates** (count, % of parent and % of total for every gate in every sample, in long format) and "
@@ -257,7 +272,7 @@ step(10, "Export", [
     "**File → Export plot as image** saves the current plot as a PNG.",
 ])
 
-step(11, "Save, twice", [
+step(12, "Save, twice", [
     "**File → Save workspace** (Ctrl+S) saves this experiment as a .fgw file. Reopen it any time with "
     "File → Open workspace (or the Recent list) and everything is as you left it.",
     "**File → Save gating template** saves the recipe (gates, statistics, scales, channel names) as a "

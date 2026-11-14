@@ -101,6 +101,7 @@ SHORTCUTS = {
 TAB_TIPS = {
     "Gating": "Draw and edit gates on the current sample.",
     "All samples": "Every sample on the same two axes, as a grid. Click any plot to open that sample.",
+    "Overlay": "Histograms of several samples, or several gates, laid over each other on one channel. The plot for “did it shift?”.",
     "Statistics": "The numbers from your gates for every sample, ready to export to Excel.",
 }
 
@@ -161,6 +162,17 @@ TOPICS = [
      "Pick a tool from the toolbar, keys 1 to 6. Polygon: click the corners and close with "
      "double-click, Enter, or by clicking the first point. Quadrant: click the crossing point. "
      "Range works on a histogram, so set Y to [Histogram] first."),
+    ("overlay histograms, compare samples on one marker, did it shift, stacked, "
+     "offset, ridgeline, modal normalisation, half offset",
+     "The Overlay tab. Pick a channel, then choose what to lay over what: the samples you "
+     "selected in the list, the whole plate, or every gate inside the current sample. "
+     "Normalise to mode is the default and is what FlowJo calls modal: every curve peaks at "
+     "the same height, so shapes compare even when the populations differ in size. Stacked "
+     "offsets the curves up the page, which stays readable past about six."),
+    ("MFI shifted but I cannot see it, prove a marker moved, compare medians",
+     "Draw the two populations on the Overlay tab: the legend carries n, the median and the "
+     "mean for each curve, in raw units. Medians there and an MFI column on the Statistics "
+     "tab are the same number, so the picture and the table will agree."),
     ("rename a channel, marker names, axis says Comp-V710-A",
      "Edit, Rename channels, to map detectors onto marker names so the axes read CD3 rather than "
      "Comp-V710-A."),

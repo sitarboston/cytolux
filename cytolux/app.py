@@ -16,6 +16,7 @@ from . import transforms as tx
 from . import wsp
 from .assistant import NO_MATCH, Assistant
 from .help_text import MENU_TIPS, TAB_TIPS, WIDGET_TIPS
+from .overlay_ui import OverlayTab
 from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
                      stat_name, stats_table, template_dict)
 from .stats_ui import AddStatDialog, AnnotateDialog, export_excel, fmt_value
@@ -172,9 +173,12 @@ class MainWindow(QtWidgets.QMainWindow):
         srow.addWidget(b)
         sl.addLayout(srow); sl.addWidget(self.stat_hint); sl.addWidget(self.table, 1)
 
+        self.overlay = OverlayTab(self)
+
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.addTab(ptab, "Gating")
         self.tabs.addTab(otab, "All samples")
+        self.tabs.addTab(self.overlay, "Overlay")
         self.tabs.addTab(stab, "Statistics")
         for _i in range(self.tabs.count()):
             self.tabs.setTabToolTip(_i, TAB_TIPS.get(self.tabs.tabText(_i), ""))
@@ -1062,11 +1066,16 @@ class MainWindow(QtWidgets.QMainWindow):
         pname = "All events" if self.cur_pop == "root" else self.cur_pop.rsplit("/", 1)[1]
         self.lbl_info.setText(f"<b>{pname}</b> · {n:,} events · {s.name}")
 
+    TAB_GATING, TAB_ALL, TAB_OVERLAY, TAB_STATS = range(4)
+
     def _tab_changed(self, i):
-        if i == 0:
+        if i == self.TAB_GATING:
             self.refresh()
-        elif i == 1:
+        elif i == self.TAB_ALL:
             self._refresh_overview()
+        elif i == self.TAB_OVERLAY:
+            self.overlay.refresh_channels()
+            self.overlay.draw()
         else:
             self._refresh_table()
 
