@@ -83,6 +83,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # ---- plot tab
         self.plot = GatePlot()
         self.plot.gate_created.connect(self._gate_created)
+        self.plot.quad_moved.connect(self._quad_moved)
         self.plot.gate_edited.connect(self._gate_edited)
         self.plot.gate_open.connect(self._select_pop)
         self.plot.gate_menu.connect(lambda path, pos: self._pop_menu(path, pos))
@@ -1011,6 +1012,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self._mark()
         self._sync_undo_actions()
         self.statusBar().showMessage(msg, 4000)
+
+    def _quad_moved(self, members, cx, cy):
+        """A crosshair arm was dragged: rewrite all four quadrants from the new centre.
+
+        Honours the same per-sample / all-samples switch as dragging an ordinary gate,
+        so a crosshair nudged on one well in Edit-this-sample mode stays local to it.
+        """
+        s = self.cur_sample
+        per_sample = self.act_local.isChecked() if hasattr(self, "act_local") else False
+        self.ws.move_quad(members, cx, cy, sname=s.name if per_sample else None)
+        self._after_gate_change()
 
     def _after_gate_change(self, redraw=True):
         self._mark()

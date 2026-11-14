@@ -123,6 +123,65 @@ def build_masks(ed, pops, gate_of, vals_of=None):
     return m
 
 
+QUAD_SIGNS = (("-", "+"), ("+", "+"), ("+", "-"), ("-", "-"))
+
+
+def quad_signs(g):
+    """Which quadrant a rectangle occupies, as ("+"/"-", "+"/"-"), and its corner.
+
+    A quadrant gate is a rectangle open on two sides: bounded below on an axis means
+    the positive side, bounded above means the negative side. Anything bounded on both
+    sides, or on neither, is an ordinary rectangle and returns None.
+    """
+    if g.get("type") != "rect" or len(g.get("dims", ())) != 2:
+        return None
+    out, corner = [], []
+    for lo, hi in zip(g["min"], g["max"]):
+        if lo is not None and hi is None:
+            out.append("+"); corner.append(float(lo))
+        elif hi is not None and lo is None:
+            out.append("-"); corner.append(float(hi))
+        else:
+            return None
+    return (tuple(out), tuple(corner))
+
+
+def quad_from_center(dims, xf, cx, cy, sx, sy):
+    """The rectangle for one quadrant of a crosshair at (cx, cy)."""
+    return {"type": "rect", "dims": list(dims), "xf": [dict(xf[0]), dict(xf[1])],
+            "min": [cx if sx == "+" else None, cy if sy == "+" else None],
+            "max": [None if sx == "+" else cx, None if sy == "+" else cy]}
+
+
+def find_quads(pops, gate_of, tol=1e-6):
+    """Spot quadrant families among sibling gates: four rectangles meeting at a point.
+
+    Quadrants are not stored as one object, in Cytolux or in FlowJo: they are four
+    ordinary rectangles that happen to share a corner. Recognising them after the fact
+    means a crosshair works on gates imported from a FlowJo workspace years ago, not
+    only on ones drawn here, which is the difference between the feature being useful
+    and being a novelty.
+
+    Returns [(centre, {signs: path})], one entry per complete family.
+    """
+    groups = {}
+    for p in pops:
+        g = gate_of(p)
+        got = quad_signs(g)
+        if got is None:
+            continue
+        signs, corner = got
+        groups.setdefault((p["parent"], tuple(g["dims"])), []).append((signs, corner, p["path"]))
+    out = []
+    for members in groups.values():
+        for cx, cy in {c for _, c, _ in members}:
+            at = {s: path for s, c, path in members
+                  if abs(c[0] - cx) <= tol and abs(c[1] - cy) <= tol}
+            if len(at) == 4 and set(at) == set(QUAD_SIGNS):
+                out.append(((cx, cy), at))
+    return out
+
+
 def gate_mask(ed, g, vals=None):
     dims, xfs = g["dims"], g["xf"]
     if vals is None:
@@ -378,6 +437,29 @@ class Workspace:
         self.pops.insert(idx, p)
         self.changed(label="add %s" % p["name"])
         return p
+
+    def quads(self, sname=None):
+        """Quadrant families in this workspace, as [(centre, {signs: path})]."""
+        return find_quads(self.pops, lambda p: self.gate_for(p["path"], sname))
+
+    def move_quad(self, members, cx, cy, sname=None):
+        """Move a crosshair: all four rectangles rewritten from the new centre.
+
+        One edit, not four. A quadrant whose four corners could drift apart is not a
+        quadrant, and four entries on the undo stack for one drag of the mouse would be
+        four presses of Ctrl+Z to put it back.
+        """
+        first = self.gate_for(members[("+", "+")], sname)
+        dims, xf = first["dims"], first["xf"]
+        for signs, path in members.items():
+            g = quad_from_center(dims, xf, float(cx), float(cy), *signs)
+            if sname is not None:
+                self.overrides.setdefault(sname, {})[path] = g
+            else:
+                self.pop(path)["gate"] = g
+                for ov in self.overrides.values():
+                    ov.pop(path, None)
+        self.changed(label="move quadrant" + (" for %s" % sname if sname else ""))
 
     def set_gate(self, path, gate, sname=None):
         name = (self.pop(path) or {}).get("name", "gate")

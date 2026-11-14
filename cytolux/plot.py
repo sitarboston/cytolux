@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import transforms as tx
-from .engine import gate_outline, reexpress_rect
+from .engine import find_quads, gate_outline, reexpress_rect
 
 pg.setConfigOptions(antialias=True, imageAxisOrder="col-major")
 
@@ -15,6 +15,8 @@ GATE_HOVER = pg.mkPen((220, 30, 30), width=2.2)
 READONLY_PEN = pg.mkPen((90, 90, 90), width=1.4, style=QtCore.Qt.DashLine)
 DRAW_PEN = pg.mkPen((220, 30, 30), width=1.6, style=QtCore.Qt.DashLine)
 CONTOUR_PEN = pg.mkPen((25, 25, 25), width=1.1)
+QUAD_PEN = pg.mkPen((0, 0, 0), width=1.4)
+QUAD_HOVER = pg.mkPen((220, 30, 30), width=2.2)
 
 
 def pseudocolor_lut():
@@ -183,6 +185,8 @@ class GatePlot(pg.PlotWidget):
     gate_open = QtCore.Signal(str)                     # path (double-click / menu)
     gate_menu = QtCore.Signal(str, object)             # path, global pos
 
+    quad_moved = QtCore.Signal(object, float, float)
+
     def __init__(self):
         self.vb = GateView()
         self.ax_x = TransformAxis("bottom")
@@ -284,8 +288,68 @@ class GatePlot(pg.PlotWidget):
         self.vb.setRange(xRange=(0, 1), yRange=(0, 1), padding=0.01)
         self._draw_gates()
 
+    # ------------------------------------------------------------------ quadrants
+    def _draw_quads(self, stats):
+        """Draw any quadrant family as one crosshair, and report which paths it covers.
+
+        Four rectangles with four sets of drag handles is how the gates are stored, but
+        it is not how anybody thinks about a CD4/CD8 or CD69/CD25 plot. One crosshair
+        with the four percentages in the corners is, and dragging either arm moves the
+        whole family together.
+        """
+        ctx = self.ctx
+        if ctx["y"] is None:
+            return set()
+        here = {path: g for path, g in ctx["gates"]}
+        pops = [{"path": p, "parent": "_"} for p in here]
+        covered = set()
+        for (cx, cy), members in find_quads(pops, lambda p: here[p["path"]]):
+            g = here[members[("+", "+")]]
+            if g["dims"] == [ctx["x"], ctx["y"]]:
+                self._add_quad(members, cx, cy, stats, swap=False)
+            elif g["dims"] == [ctx["y"], ctx["x"]]:
+                self._add_quad(members, cy, cx, stats, swap=True)
+            else:
+                continue
+            covered |= set(members.values())
+        return covered
+
+    def _add_quad(self, members, cx, cy, stats, swap):
+        vline = pg.InfiniteLine(pos=cx, angle=90, movable=True, pen=QUAD_PEN,
+                                hoverPen=QUAD_HOVER, bounds=[0, 1])
+        hline = pg.InfiniteLine(pos=cy, angle=0, movable=True, pen=QUAD_PEN,
+                                hoverPen=QUAD_HOVER, bounds=[0, 1])
+        for ln in (vline, hline):
+            ln.setZValue(20)
+            self.addItem(ln)
+            self.gate_items.append(ln)
+
+        def moved():
+            x, y = float(vline.value()), float(hline.value())
+            self.quad_moved.emit(members, y if swap else x, x if swap else y)
+
+        vline.sigPositionChangeFinished.connect(moved)
+        hline.sigPositionChangeFinished.connect(moved)
+
+        inset = 0.02
+        for signs, path in members.items():
+            sx, sy = signs
+            if swap:
+                sx, sy = sy, sx
+            px = (1 - inset) if sx == "+" else inset
+            py = (1 - inset) if sy == "+" else inset
+            pct = stats.get(path, (0, 0.0, 0.0))[1]
+            t = pg.TextItem("%s\n%.2f%%" % (_quad_name(path), pct), color=(0, 0, 0),
+                            anchor=(1 if sx == "+" else 0, 0 if sy == "+" else 1),
+                            fill=pg.mkBrush(255, 255, 255, 190))
+            t.setPos(px, py)
+            t.setZValue(21)
+            self.addItem(t)
+            self.gate_items.append(t)
+
     # ------------------------------------------------------------------ contours
-    CONTOUR_BINS = 192          # contours are vector paths; they do not need a fine grid
+    CONTOUR_BINS = 160          # contours are vector paths; they do not need a fine grid
+    CONTOUR_BW = 0.073          # bandwidth constant, see _contour_sigma
 
     def _axis_label(self, ws, dim, s):
         """On screen, name the detector as well as the marker, because that is what you
@@ -300,6 +364,19 @@ class GatePlot(pg.PlotWidget):
                 item = h.get("item") if isinstance(h, dict) else None
                 if item is not None:
                     yield item
+
+    def _contour_sigma(self, n_events):
+        """Smoothing bandwidth, as a fraction of the axis, for a sample of this size.
+
+        A fixed bandwidth is wrong, and visibly so: a gate holding three thousand events
+        binned as finely as one holding a hundred thousand produces contours that trace
+        counting noise, dozens of little closed rings that look like structure and are
+        not. Bandwidth has to widen as events get scarcer. The exponent is the standard
+        one for a two-dimensional kernel density estimate (Scott's rule, n**-1/6); the
+        constant is set so a typical 50,000-event population gets about one percent of
+        the axis, which is where these plots have always been drawn.
+        """
+        return self.CONTOUR_BW * max(n_events, 1) ** (-1.0 / 6.0)
 
     def _clear_contours(self):
         for it in getattr(self, "contour_items", []):
@@ -317,7 +394,7 @@ class GatePlot(pg.PlotWidget):
         """
         n = self.CONTOUR_BINS
         H, _, _ = np.histogram2d(X, Y, bins=n, range=[[0, 1], [0, 1]])
-        S = _smooth2d(H, sigma=1.6 * n / 256)
+        S = _smooth2d(H, sigma=max(1.0, self._contour_sigma(len(X)) * n))
         levels = contour_levels(S, self.n_contours)
         scale = QtGui.QTransform().scale(1.0 / n, 1.0 / n).translate(0.5, 0.5)
         for lv in levels:
@@ -344,7 +421,10 @@ class GatePlot(pg.PlotWidget):
         ctx = self.ctx
         ws, s = ctx["ws"], ctx["sample"]
         stats = ws.stats(s)
+        drawn = self._draw_quads(stats)
         for path, g in ctx["gates"]:
+            if path in drawn:
+                continue
             dims = g["dims"]
             if ctx["y"] is None:
                 if len(dims) != 1 or dims[0] != ctx["x"]:
@@ -528,6 +608,17 @@ class GatePlot(pg.PlotWidget):
                 img.setDotsPerMeterY(per_m)
                 img.save(path)
         return path
+
+
+def _quad_name(path):
+    """A corner label, not an essay. FlowJo writes a quadrant's full definition into
+    its name, so the imported population is called "Q2: CD69-Brilliant Violet 605-A+ ,
+    CD25-Brilliant Violet 421-A+". In the corner of a plot, "Q2" is what is wanted."""
+    name = path.rsplit("/", 1)[-1]
+    head = name.split(":", 1)[0].strip()
+    if len(head) <= 4 and head:
+        return head
+    return name if len(name) <= 18 else name[:17] + "…"
 
 
 def contour_levels(S, n=8):

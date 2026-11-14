@@ -182,3 +182,88 @@ def test_a_screen_export_keeps_everything(plotted, tmp_path):
     p.export_png(str(tmp_path / "s.png"), width=700, dpi=0, figure=False)
     img = QtGui.QImage(str(tmp_path / "s.png"))
     assert img.width() == 700
+
+
+# --- contour bandwidth ---------------------------------------------------------------
+
+def test_the_contour_bandwidth_widens_as_events_get_scarcer(plotted):
+    """A fixed bandwidth traced counting noise on small populations: dozens of little
+    closed rings that look like structure and are not."""
+    p, _, _ = plotted
+    assert p._contour_sigma(3000) > p._contour_sigma(100000)
+    assert p._contour_sigma(3000) / p._contour_sigma(3000 * 64) == pytest.approx(2.0, rel=1e-6)
+
+
+def test_a_sparse_population_gets_smooth_contours_not_noise(app):
+    """The regression guard. Three thousand events used to produce dozens of separate
+    blobs above the outermost contour; it should be a handful of real regions."""
+    from scipy import ndimage
+    from cytolux.plot import contour_levels, _smooth2d
+    rng = np.random.default_rng(5)
+    n = 3000
+    xy = np.clip(rng.normal(0.5, 0.12, size=(n, 2)), 0, 1)
+    p = GatePlot()
+    H, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=p.CONTOUR_BINS, range=[[0, 1], [0, 1]])
+    S = _smooth2d(H, sigma=max(1.0, p._contour_sigma(n) * p.CONTOUR_BINS))
+    lv = contour_levels(S, 8)
+    assert lv, "no contours at all"
+    assert ndimage.label(S >= lv[0])[1] <= 3, "the outermost contour broke into noise"
+    p.close()
+
+
+# --- the quadrant crosshair ----------------------------------------------------------
+
+@pytest.fixture
+def quad_plotted(app):
+    from cytolux.engine import quad_from_center
+    ws = Workspace()
+    xf = [dict(tx.linear(T)), dict(tx.linear(T))]
+    for sx, sy in (("-", "+"), ("+", "+"), ("+", "-"), ("-", "-")):
+        ws.add_pop("root", "Q%s%s" % (sx, sy),
+                   quad_from_center(("A", "B"), xf, 0.5, 0.5, sx, sy))
+    s = attach(ws, FakeSample("q.fcs", smear(n=9000, seed=2)))
+    p = GatePlot()
+    p.resize(500, 500)
+    p.show()
+    ctx = dict(ws=ws, sample=s, pop="root", x="A", y="B",
+               xf_x=tx.linear(T), xf_y=tx.linear(T),
+               gates=[(q["path"], ws.gate_for(q["path"], s.name)) for q in ws.pops])
+    p.show_population(ctx)
+    yield p, ws, ctx
+    p.close()
+
+
+def test_a_quadrant_family_is_drawn_as_one_crosshair(quad_plotted):
+    import pyqtgraph as pg
+    p, _, _ = quad_plotted
+    lines = [i for i in p.gate_items if isinstance(i, pg.InfiniteLine)]
+    assert len(lines) == 2, "expected two crosshair arms, got %d" % len(lines)
+    assert not any(hasattr(i, "handles") and i.handles for i in p.gate_items), \
+        "the four rectangles were drawn as well, each with its own handles"
+
+
+def test_the_crosshair_carries_a_percentage_in_each_corner(quad_plotted):
+    import pyqtgraph as pg
+    p, ws, _ = quad_plotted
+    labels = [i for i in p.gate_items if isinstance(i, pg.TextItem)]
+    assert len(labels) == 4
+    pcts = [float(t.toPlainText().split("\n")[1].rstrip("%")) for t in labels]
+    assert sum(pcts) == pytest.approx(100.0, abs=0.05), "the quadrants do not add up"
+
+
+def test_dragging_an_arm_reports_the_new_centre(quad_plotted):
+    import pyqtgraph as pg
+    p, _, _ = quad_plotted
+    seen = []
+    p.quad_moved.connect(lambda m, x, y: seen.append((x, y)))
+    vline = [i for i in p.gate_items if isinstance(i, pg.InfiniteLine) and i.angle == 90][0]
+    vline.setValue(0.27)
+    vline.sigPositionChangeFinished.emit(vline)
+    assert len(seen) == 1
+    assert seen[0][0] == pytest.approx(0.27)
+    assert seen[0][1] == pytest.approx(0.5), "the other arm moved too"
+
+
+def test_an_ordinary_gate_still_gets_its_own_handles(plotted):
+    p, _, _ = plotted
+    assert list(p._handle_items()), "a lone rectangle lost its drag handles"
