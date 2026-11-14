@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cytolux"
+version = "0.3.0"
+description = "Desktop flow cytometry viewer and gating application"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Samyabrata Bhaduri" }]
+dependencies = [
+    "PySide6>=6.6",
+    "pyqtgraph>=0.13",
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "flowkit>=1.3",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-qt>=4.4", "pyinstaller>=6.6"]
+
+[project.gui-scripts]
+cytolux = "cytolux.app:main"
+
+[tool.setuptools.packages.find]
+include = ["cytolux*"]
+
+[tool.setuptools.package-data]
+cytolux = ["icons/*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

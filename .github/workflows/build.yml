@@ -1,0 +1,71 @@
+name: build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Engine must stay headless
+        run: |
+          python - <<'PY'
+          import sys
+          import cytolux.engine, cytolux.transforms, cytolux.wsp
+          qt = [m for m in sys.modules if "PySide6" in m or "pyqtgraph" in m]
+          assert not qt, "GUI leaked into the engine: %s" % qt
+          print("engine is headless")
+          PY
+      - name: Tests
+        run: xvfb-run -a pytest -q
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: Cytolux-windows
+            sep: ";"
+          - os: macos-latest
+            artifact: Cytolux-macos-arm64
+            sep: ":"
+          - os: ubuntu-latest
+            artifact: Cytolux-linux
+            sep: ":"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Build
+        run: >
+          pyinstaller --noconfirm --clean --windowed --name Cytolux
+          --add-data "cytolux/icons${{ matrix.sep }}cytolux/icons"
+          --collect-all flowkit
+          --hidden-import openpyxl
+          --hidden-import pyqtgraph
+          cytolux/__main__.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+          retention-days: 30

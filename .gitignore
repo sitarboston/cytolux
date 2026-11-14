@@ -6,3 +6,9 @@ docs/shots/*.fgw
 docs/Cytolux_Step_by_Step.docx
 *.~lock.*#
 .~lock.*#
+build/
+dist/
+*.egg-info/
+*.spec
+.pytest_cache/
+.venv/
