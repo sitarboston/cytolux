@@ -64,3 +64,8 @@ def thresh(lo, dim="A"):
     """A one-sided threshold on a single marker, which is how a positive population is
     actually gated, and the case where boundary placement matters most."""
     return {"type": "rect", "dims": [dim], "xf": [dict(LIN)], "min": [lo], "max": [None]}
+
+
+def ellipse(cx, cy, a, b, angle=0.0, dims=("A", "B")):
+    return {"type": "ellipse", "dims": list(dims), "xf": [dict(LIN), dict(LIN)],
+            "center": [cx, cy], "axes": [a, b], "angle": angle}

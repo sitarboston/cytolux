@@ -267,3 +267,84 @@ def test_dragging_an_arm_reports_the_new_centre(quad_plotted):
 def test_an_ordinary_gate_still_gets_its_own_handles(plotted):
     p, _, _ = plotted
     assert list(p._handle_items()), "a lone rectangle lost its drag handles"
+
+
+# --- the handles you reach for ---------------------------------------------
+#
+# An ellipse you cannot grab is an ellipse you cannot adjust. pyqtgraph's default
+# is one handle on the bounding-box corner: hard to aim at, and it scales both
+# axes together. These tests hold the shape to four handles on the ellipse itself.
+
+
+@pytest.fixture
+def oval(app):
+    from helpers import ellipse
+    ws = Workspace()
+    ws.add_pop("root", "Oval", ellipse(0.5, 0.5, 0.2, 0.12))
+    s = attach(ws, FakeSample("one.fcs", islands(n=8000)))
+    p = GatePlot()
+    p.resize(600, 600)
+    p.show()
+    ctx = dict(ws=ws, sample=s, pop="root", x="A", y="B",
+               xf_x=tx.linear(T), xf_y=tx.linear(T),
+               gates=[("/Oval", ws.gate_for("/Oval", s.name))])
+    p.show_population(ctx)
+    yield p, ws, ctx
+    p.close()
+
+
+def test_an_ellipse_has_four_scale_handles_and_one_to_turn_it(oval):
+    p, _, _ = oval
+    import pyqtgraph as pg
+    roi = [i for i in p.gate_items if isinstance(i, pg.EllipseROI)][0]
+    kinds = sorted(h["type"] for h in roi.handles)
+    assert kinds == ["r", "s", "s", "s", "s"], \
+        "expected four scale handles and one rotate, got %r" % (kinds,)
+
+
+def test_the_four_handles_sit_at_the_ends_of_the_two_axes(oval):
+    p, _, _ = oval
+    import pyqtgraph as pg
+    roi = [i for i in p.gate_items if isinstance(i, pg.EllipseROI)][0]
+    spots = sorted(tuple(round(v, 3) for v in (h["pos"].x(), h["pos"].y()))
+                   for h in roi.handles if h["type"] == "s")
+    assert spots == [(0.0, 0.5), (0.5, 0.0), (0.5, 1.0), (1.0, 0.5)], \
+        "the handles are not top, bottom, left and right"
+
+
+def test_pinching_a_handle_scales_about_the_centre(oval):
+    """Dragging the top of an oval should change its height, not walk it up the plot."""
+    p, ws, _ = oval
+    import pyqtgraph as pg
+    moved = []
+    p.gate_edited.connect(lambda path, g: moved.append(g))
+    roi = [i for i in p.gate_items if isinstance(i, pg.EllipseROI)][0]
+    top = [h for h in roi.handles
+           if h["type"] == "s" and (h["pos"].x(), h["pos"].y()) == (0.5, 1.0)][0]
+    roi.movePoint(top["item"], pg.Point(0.5, 0.80), finish=True)
+    assert moved, "dragging a handle reported no edit"
+    g = moved[-1]
+    assert g["center"] == pytest.approx([0.5, 0.5], abs=0.01), "the gate drifted off centre"
+    assert g["axes"][1] > 0.12, "pinching the top did not grow the height"
+    assert g["axes"][0] == pytest.approx(0.2, abs=0.01), "the width changed too"
+
+
+def test_every_handle_is_big_enough_to_hit(oval, plotted):
+    """Qt's default handle is 5 px of thin outline. On a dense plot that is invisible."""
+    from cytolux.plot import HANDLE_RADIUS
+    for p, _, _ in (oval, plotted):
+        hs = list(p._handle_items())
+        assert hs, "no handles at all"
+        for h in hs:
+            assert h.radius == HANDLE_RADIUS
+            assert h.pen.color().red() > 150, "the handle is not drawn in the gate colour"
+            assert h.brush.color().alpha() > 200, "the handle is not filled in"
+
+
+def test_handles_are_hidden_in_an_exported_figure(oval, tmp_path):
+    p, _, _ = oval
+    out = p.export_png(str(tmp_path / "oval.png"), width=900, figure=True)
+    img = QtGui.QImage(out)
+    assert not img.isNull()
+    assert all(h.isVisible() for h in p._handle_items()), \
+        "the handles did not come back after the export"

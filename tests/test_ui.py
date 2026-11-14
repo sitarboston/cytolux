@@ -226,3 +226,44 @@ def test_a_quick_statistic_computes(win_with_data):
     w._quick_stat("/Cells", "Median", "CD4")
     v = compute_stat(w.ws, s, w.ws.stat_defs[0])
     assert np.isfinite(v) and v > 0
+
+
+# --- the two biexponentials -------------------------------------------------
+#
+# "Biex" named two different functions in the same menu: logicle, and the one
+# FlowJo saved in the .wsp. They do not agree near zero, so a user who picks the
+# wrong one gets a plot that quietly disagrees with their FlowJo figure.
+
+
+def test_both_biexponentials_are_named_for_what_they_are(win):
+    from PySide6 import QtCore
+    for cb in (win.cb_xf_x, win.cb_xf_y):
+        items = [cb.itemText(i) for i in range(cb.count())]
+        assert items == ["Linear", "Log", "Biex (logicle)", "Biex (FlowJo's own)"]
+        biex = [t for t in items if t.startswith("Biex")]
+        assert len(set(biex)) == 2, "the two biex entries read the same"
+        for i in (2, 3):
+            tip = cb.itemData(i, QtCore.Qt.ToolTipRole)
+            assert tip, "%r carries no explanation" % cb.itemText(i)
+        assert "logicle" in cb.itemData(2, QtCore.Qt.ToolTipRole).lower()
+        assert "FlowJo" in cb.itemData(3, QtCore.Qt.ToolTipRole)
+
+
+def test_the_flowjo_entry_says_it_differs_from_logicle(win):
+    """Whoever reads the tooltip should learn why the two are not interchangeable."""
+    from PySide6 import QtCore
+    tip = win.cb_xf_x.itemData(3, QtCore.Qt.ToolTipRole)
+    assert "Not the same function as logicle" in tip
+
+
+def test_picking_each_scale_sets_the_transform_it_names(win_with_data):
+    """The handler reads the menu label, so renaming an entry can silently stop it
+    working. Each of the four has to land on its own transform kind."""
+    w, s = win_with_data
+    i = w.cb_x.findData("CD4")
+    assert i >= 0, "the fixture sample is not on the X axis"
+    w.cb_x.setCurrentIndex(i)
+    for idx, kind in ((0, "linear"), (1, "log"), (3, "wspbiex"), (2, "biex")):
+        w.cb_xf_x.setCurrentIndex(idx)
+        got = w.ws.xform("CD4", s)["kind"]
+        assert got == kind, "%r gave %r, expected %r" % (w.cb_xf_x.itemText(idx), got, kind)

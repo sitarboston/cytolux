@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import theme
 from . import transforms as tx
 from . import wsp
 from .assistant import NO_MATCH, Assistant
@@ -90,9 +91,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cb_x, self.cb_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self.cb_xf_x, self.cb_xf_y = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         for cb in (self.cb_xf_x, self.cb_xf_y):
-            cb.addItems(["Linear", "Log", "Biex", "Biex (FlowJo)"])
-            cb.setItemData(3, "The biexponential FlowJo used for this channel, read from the "
-                              "imported workspace", QtCore.Qt.ToolTipRole)
+            cb.addItems(["Linear", "Log", "Biex (logicle)", "Biex (FlowJo's own)"])
+            cb.setItemData(2, "Logicle, the published biexponential (Parks, Roederer and Moore, "
+                              "2006). The W box sets how much of the axis goes to the region "
+                              "around zero. Off-scale negative events stay visible below zero.",
+                           QtCore.Qt.ToolTipRole)
+            cb.setItemData(3, "FlowJo 10's own biexponential, with the exact parameters it saved "
+                              "for this channel in the imported .wsp. Not the same function as "
+                              "logicle: it folds everything below about -132 onto zero rather "
+                              "than showing it. Pick this when a plot has to line up with "
+                              "FlowJo's, and logicle otherwise.", QtCore.Qt.ToolTipRole)
         self.sp_w_x, self.sp_w_y = QtWidgets.QDoubleSpinBox(), QtWidgets.QDoubleSpinBox()
         for sp in (self.sp_w_x, self.sp_w_y):
             sp.setRange(0.0, 2.0); sp.setSingleStep(0.1); sp.setDecimals(2); sp.setPrefix("W ")
@@ -1569,6 +1577,7 @@ def main():
         QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QtWidgets.QApplication(sys.argv)
     app.setDesktopFileName("cytolux")
+    theme.apply(app)
     w = MainWindow()
     w.show()
     for a in sys.argv[1:]:

@@ -5,6 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import theme
 from . import transforms as tx
 from .engine import find_quads, gate_outline, reexpress_rect
 
@@ -15,6 +16,9 @@ GATE_HOVER = pg.mkPen((220, 30, 30), width=2.2)
 READONLY_PEN = pg.mkPen((90, 90, 90), width=1.4, style=QtCore.Qt.DashLine)
 DRAW_PEN = pg.mkPen((220, 30, 30), width=1.6, style=QtCore.Qt.DashLine)
 CONTOUR_PEN = pg.mkPen((25, 25, 25), width=1.1)
+HANDLE_RADIUS = 7
+HANDLE_PEN = pg.mkPen((200, 35, 35), width=1.6)
+HANDLE_BRUSH = pg.mkBrush(255, 255, 255, 235)
 QUAD_PEN = pg.mkPen((0, 0, 0), width=1.4)
 QUAD_HOVER = pg.mkPen((220, 30, 30), width=2.2)
 
@@ -192,7 +196,7 @@ class GatePlot(pg.PlotWidget):
         self.ax_x = TransformAxis("bottom")
         self.ax_y = TransformAxis("left")
         super().__init__(viewBox=self.vb, axisItems={"bottom": self.ax_x, "left": self.ax_y})
-        self.setBackground("w")
+        self.setBackground(theme.CANVAS)
         for ax in (self.ax_x, self.ax_y):
             ax.setPen(pg.mkPen("k"))
             ax.setTextPen(pg.mkPen("k"))
@@ -524,7 +528,18 @@ class GatePlot(pg.PlotWidget):
             # ROI position is its local (0,0) corner, rotated about itself
             px = cx - (a * math.cos(th) - b * math.sin(th))
             py = cy - (a * math.sin(th) + b * math.cos(th))
-            roi = pg.EllipseROI((px, py), (2 * a, 2 * b), angle=ang, pen=GATE_PEN, hoverPen=GATE_HOVER)
+            roi = pg.EllipseROI((px, py), (2 * a, 2 * b), angle=ang, pen=GATE_PEN,
+                                hoverPen=GATE_HOVER, removable=False)
+            # pyqtgraph gives an ellipse one corner handle on its bounding box, which is
+            # an awkward thing to aim at and scales both axes at once. Four handles on
+            # the ellipse itself, at the ends of its two axes, is what you reach for:
+            # pinch the top to change the height, the side to change the width. All four
+            # scale about the centre, so the gate stays where it was put.
+            for h in list(roi.getHandles()):
+                roi.removeHandle(h)
+            for pos in ([0.5, 1], [0.5, 0], [1, 0.5], [0, 0.5]):
+                roi.addScaleHandle(pos, [0.5, 0.5])
+            roi.addRotateHandle([0.854, 0.854], [0.5, 0.5])
 
             def done(r=roi):
                 size = r.size()
@@ -536,6 +551,7 @@ class GatePlot(pg.PlotWidget):
                     ANG = 90.0 - ANG
                 self.gate_edited.emit(path, dict(g, center=C, axes=[A, B], angle=ANG))
         if roi is not None:
+            self._style_handles(roi)
             roi.sigRegionChangeFinished.connect(done)
             roi.setAcceptedMouseButtons(QtCore.Qt.LeftButton | QtCore.Qt.RightButton)
             roi.sigClicked.connect(lambda r, ev, p=path: self._roi_clicked(p, ev))
@@ -552,6 +568,23 @@ class GatePlot(pg.PlotWidget):
             inside = pts[(pts[:, 0] >= 0) & (pts[:, 0] <= 1) & (pts[:, 1] >= 0) & (pts[:, 1] <= 1)]
             cx, cy = (inside.mean(0) if len(inside) else (0.5, 0.5))
         self._label(path, stats, cx, cy)
+
+    @staticmethod
+    def _style_handles(roi):
+        """Make the grab points obvious.
+
+        pyqtgraph draws handles as small faint dots, which is fine once you know they
+        are there and no help at all when you are hunting for the place to pinch. These
+        are larger, filled white and outlined in the gate's own red, so a gate announces
+        where it can be taken hold of.
+        """
+        for h in roi.getHandles():
+            h.radius = HANDLE_RADIUS
+            h.pen = HANDLE_PEN
+            h.currentPen = HANDLE_PEN
+            h.brush = HANDLE_BRUSH
+            h.buildPath()
+            h.update()
 
     def _roi_clicked(self, path, ev):
         if ev.button() == QtCore.Qt.RightButton:
@@ -586,6 +619,7 @@ class GatePlot(pg.PlotWidget):
         try:
             self.bins_override = int(min(2048, max(self.MIN_BINS, width)))
             self.figure_mode = bool(figure)
+            self.setBackground(theme.FIGURE if self.figure_mode else theme.CANVAS)
             if self.ctx is not None:
                 self.show_population(self.ctx)
             if self.figure_mode:
@@ -598,6 +632,7 @@ class GatePlot(pg.PlotWidget):
             ex.export(path)
         finally:
             self.bins_override, self.figure_mode = old, old_fig
+            self.setBackground(theme.CANVAS)
             if self.ctx is not None:
                 self.show_population(self.ctx)
         if dpi:
