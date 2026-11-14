@@ -74,7 +74,20 @@ jobs:
           --collect-all flowkit
           --hidden-import openpyxl
           --hidden-import pyqtgraph
-          cytolux/__main__.py
+          run_cytolux.py
+      - name: Smoke test the binary
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CYTOLUX_SELFTEST: "1"
+        run: |
+          if [ -d "dist/Cytolux.app" ]; then
+            ./dist/Cytolux.app/Contents/MacOS/Cytolux
+          elif [ -f "dist/Cytolux/Cytolux.exe" ]; then
+            ./dist/Cytolux/Cytolux.exe
+          else
+            ./dist/Cytolux/Cytolux
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

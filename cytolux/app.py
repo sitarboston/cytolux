@@ -1662,4 +1662,14 @@ def main():
             w._safe(lambda: w.open_workspace(a))
         elif os.path.isdir(a):
             w._load_files(sorted(glob.glob(os.path.join(a, "*.fcs"))))
+    if os.environ.get("CYTOLUX_SELFTEST"):
+        # Build everything, draw one frame, and leave. The packaged builds shipped
+        # broken once because nothing ever started them; the release pipeline runs
+        # this on all three platforms before it will upload a binary.
+        for _ in range(3):
+            app.processEvents()
+        assert w.credit.text() and not w.windowIcon().isNull()
+        print("Cytolux %s self-test OK" % __version__)
+        w.dirty = False
+        sys.exit(0)
     sys.exit(app.exec())
