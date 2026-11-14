@@ -5,6 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import brand
 from . import theme
 from . import transforms as tx
 from .engine import find_quads, gate_outline, reexpress_rect
@@ -635,13 +636,17 @@ class GatePlot(pg.PlotWidget):
             self.setBackground(theme.CANVAS)
             if self.ctx is not None:
                 self.show_population(self.ctx)
-        if dpi:
-            img = QtGui.QImage(path)
-            if not img.isNull():
+        img = QtGui.QImage(path)
+        if not img.isNull():
+            if dpi:
                 per_m = int(round(dpi / 0.0254))
                 img.setDotsPerMeterX(per_m)
                 img.setDotsPerMeterY(per_m)
-                img.save(path)
+            # The author travels inside the file rather than across the picture: a
+            # name printed over the data would make the figure unusable in a paper.
+            for k, v in brand.png_metadata().items():
+                img.setText(k, v)
+            img.save(path)
         return path
 
 

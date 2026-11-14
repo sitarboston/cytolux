@@ -15,6 +15,8 @@ from . import theme
 from . import transforms as tx
 from . import wsp
 from .assistant import NO_MATCH, Assistant
+from . import __version__
+from . import brand
 from .help_text import MENU_TIPS, TAB_TIPS, WIDGET_TIPS
 from .overlay_ui import OverlayTab
 from .engine import (STATS, Workspace, apply_template, compute_stat, gate_outline, is_scatter,
@@ -206,7 +208,13 @@ class MainWindow(QtWidgets.QMainWindow):
         split = QtWidgets.QSplitter()
         split.addWidget(left); split.addWidget(self.tabs); split.setSizes([380, 1020])
         self.setCentralWidget(split)
-        self.statusBar()
+        sb = self.statusBar()
+        # A permanent widget, not a message: transient status text comes and goes on
+        # the left and never covers this.
+        self.credit = QtWidgets.QLabel(brand.CREDIT)
+        self.credit.setToolTip(brand.LONG_CREDIT)
+        self.credit.setStyleSheet("color:%s; padding:0 8px;" % theme.MUTED)
+        sb.addPermanentWidget(self.credit)
 
         # ---- tools
         tb = self.addToolBar("Tools"); tb.setIconSize(QtCore.QSize(26, 26))
@@ -307,6 +315,9 @@ class MainWindow(QtWidgets.QMainWindow):
                       "and never sends anything anywhere.")
         self._act(m, "Quick guide", self.show_help, "F1")
         self._act(m, "Check against FlowJo counts", self.show_fj_check)
+        m.addSeparator()
+        self._act(m, "About Cytolux", self.show_about,
+                  tip="Version, author and licence")
 
     def _act(self, menu, text, fn, shortcut=None, tip=None):
         a = QtGui.QAction(text, self)
@@ -1558,6 +1569,36 @@ class MainWindow(QtWidgets.QMainWindow):
             parts.append("<p><b>%s</b>%s<br>%s</p>"
                          % (_html.escape(h.title), where, _html.escape(h.body)))
         return "".join(parts)
+
+    def show_about(self):
+        """Who made it, which version, and what you may do with it."""
+        d = QtWidgets.QDialog(self)
+        d.setWindowTitle("About " + brand.APP)
+        lay = QtWidgets.QVBoxLayout(d)
+        mark = QtWidgets.QLabel()
+        mark.setPixmap(app_icon().pixmap(QtCore.QSize(96, 96)))
+        mark.setAlignment(QtCore.Qt.AlignCenter)
+        lay.addWidget(mark)
+        body = QtWidgets.QLabel(
+            "<div style='text-align:center'>"
+            "<div style='font-size:20pt; font-weight:600'>%s</div>"
+            "<div style='color:%s'>%s</div><br>"
+            "<div>Version %s</div>"
+            "<div><b>Created by %s</b></div>"
+            "<div style='color:%s'>%s</div><br>"
+            "<div style='color:%s'>Every figure, workbook and workspace this program "
+            "writes carries that attribution in its file information.</div>"
+            "</div>"
+            % (brand.APP, theme.MUTED, brand.TAGLINE, __version__, brand.CREATOR,
+               theme.MUTED, brand.COPYRIGHT, theme.MUTED))
+        body.setWordWrap(True)
+        body.setMinimumWidth(380)
+        lay.addWidget(body)
+        box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+        box.rejected.connect(d.reject)
+        box.accepted.connect(d.accept)
+        lay.addWidget(box)
+        d.exec()
 
     def show_help(self):
         QtWidgets.QMessageBox.information(self, "Cytolux quick guide", HELP)

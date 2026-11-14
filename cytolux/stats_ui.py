@@ -7,6 +7,7 @@ import pandas as pd
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from .engine import STATS, PERCENT_STATS, stat_name, stats_table
+from . import brand
 
 
 class AddStatDialog(QtWidgets.QDialog):
@@ -255,10 +256,20 @@ def export_excel(ws, path, version="0.2"):
     long = pd.DataFrame(rows)
     comp = {"file": "matrix stored in each FCS file (acquisition-defined)", "none": "none",
             "custom": "custom matrix (loaded or edited)"}[ws.comp_mode]
-    about = pd.DataFrame({"Item": ["Exported", "Workspace", "Samples", "Compensation", "Software"],
-                          "Value": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), ws.path or "(not saved)",
-                                    len(ws.samples), comp, f"Cytolux {version}"]})
+    about = pd.DataFrame(
+        {"Item": ["Exported", "Workspace", "Samples", "Compensation", "Software",
+                  "Created by", "Copyright"],
+         "Value": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), ws.path or "(not saved)",
+                   len(ws.samples), comp, f"Cytolux {version}",
+                   brand.CREATOR, brand.COPYRIGHT]})
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
+        # Workbook properties, so the attribution survives a copy of the file that
+        # never has the About sheet opened.
+        props = xw.book.properties
+        props.creator = brand.CREATOR
+        props.lastModifiedBy = brand.CREATOR
+        props.title = "Cytolux statistics"
+        props.description = brand.software_tag()
         table.to_excel(xw, sheet_name="Statistics", index=False)
         if len(defs):
             defs.to_excel(xw, sheet_name="Definitions", index=False)

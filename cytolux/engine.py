@@ -19,6 +19,8 @@ import flowkit as fk
 
 from . import transforms as tx
 
+from . import brand
+
 SCATTER_PREFIXES = ("FSC", "SSC", "Time", "TIME", "Event", "Width")
 
 
@@ -600,6 +602,7 @@ class Workspace:
     def to_dict(self):
         return {
             "format": "cytolux-workspace", "version": 1,
+            "created_with": brand.software_tag(), "author": brand.CREATOR,
             "samples": [s.path for s in self.samples],
             "comp_mode": self.comp_mode,
             "custom_comp": None if self.custom_comp is None else
