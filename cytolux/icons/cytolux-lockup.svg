@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 72" width="300" height="72">
+  <title>Cytolux</title>
+  <defs>
+    <linearGradient id="ltile" x1="0.08" y1="0" x2="0.92" y2="1">
+      <stop offset="0" stop-color="#24355F"/>
+      <stop offset="0.55" stop-color="#132047"/>
+      <stop offset="1" stop-color="#090F25"/>
+    </linearGradient>
+    <linearGradient id="larc" x1="0.1" y1="1" x2="0.95" y2="0.1">
+      <stop offset="0" stop-color="#1FBEE0"/>
+      <stop offset="0.42" stop-color="#53E2C6"/>
+      <stop offset="0.78" stop-color="#C9DC78"/>
+      <stop offset="1" stop-color="#FFC24B"/>
+    </linearGradient>
+    <radialGradient id="lspark" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFF6DF"/>
+      <stop offset="0.45" stop-color="#FFD37A"/>
+      <stop offset="1" stop-color="#FFC24B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(4,4) scale(1)">
+    <rect width="64" height="64" rx="14" fill="url(#ltile)"/>
+    <path d="M45.6 19.3 A17.5 17.5 0 1 0 45.6 44.7"
+          fill="none" stroke="url(#larc)" stroke-width="9" stroke-linecap="round"/>
+    <g fill="#0B1229" opacity="0.52">
+      <circle cx="27.77" cy="15.02" r="2.2"/>
+      <circle cx="18.21" cy="21.23" r="2.4"/>
+      <circle cx="14.5" cy="32.0" r="2.5"/>
+      <circle cx="18.21" cy="42.77" r="2.4"/>
+      <circle cx="27.77" cy="48.98" r="2.2"/>
+    </g>
+    <circle cx="50.5" cy="32" r="8" fill="url(#lspark)"/>
+    <circle cx="50.5" cy="32" r="3.6" fill="#FFFFFF"/>
+  </g>
+  <text x="84" y="46" font-family="Helvetica, Arial, sans-serif" font-size="34"
+        font-weight="600" letter-spacing="0.5" fill="#132047">Cytolux</text>
+</svg>

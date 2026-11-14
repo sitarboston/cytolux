@@ -33,6 +33,24 @@ def icon(name):
     return QtGui.QIcon(p) if os.path.exists(p) else QtGui.QIcon()
 
 
+def app_icon():
+    """The Cytolux mark, at every size the desktop might ask for.
+
+    A single SVG works, but Qt rasterises it per request and a 16 px taskbar entry
+    rendered that way loses the shape. The rendered set is tuned at each size, so the
+    icon stays itself from the dock to the alt-tab strip.
+    """
+    ic = QtGui.QIcon()
+    d = os.path.join(HERE, "icons", "app")
+    if os.path.isdir(d):
+        for f in sorted(os.listdir(d)):
+            if f.endswith(".png"):
+                ic.addFile(os.path.join(d, f))
+    if ic.isNull():
+        return icon("cytolux")
+    return ic
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -43,7 +61,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fj_counts = None
         self.dirty = False
         self.settings = QtCore.QSettings("Cytolux", "Cytolux")
-        self.setWindowIcon(icon("cytolux"))
+        self.setWindowIcon(app_icon())
         self.resize(1400, 900)
         self._build()
         self._update_title()
@@ -1594,6 +1612,7 @@ def main():
         QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QtWidgets.QApplication(sys.argv)
     app.setDesktopFileName("cytolux")
+    app.setWindowIcon(app_icon())
     theme.apply(app)
     w = MainWindow()
     w.show()

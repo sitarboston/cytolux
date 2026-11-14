@@ -47,12 +47,15 @@ jobs:
           - os: windows-latest
             artifact: Cytolux-windows
             sep: ";"
+            icon: cytolux/icons/cytolux.ico
           - os: macos-latest
             artifact: Cytolux-macos-arm64
             sep: ":"
+            icon: cytolux/icons/cytolux.icns
           - os: ubuntu-latest
             artifact: Cytolux-linux
             sep: ":"
+            icon: cytolux/icons/app/cytolux-256.png
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +69,7 @@ jobs:
       - name: Build
         run: >
           pyinstaller --noconfirm --clean --windowed --name Cytolux
+          --icon "${{ matrix.icon }}"
           --add-data "cytolux/icons${{ matrix.sep }}cytolux/icons"
           --collect-all flowkit
           --hidden-import openpyxl
