@@ -52,7 +52,11 @@ jobs:
             artifact: Cytolux-macos-arm64
             sep: ":"
             icon: cytolux/icons/cytolux.icns
-          - os: ubuntu-latest
+          # Built on the oldest runner still supported, deliberately. A binary linked
+          # against the newest glibc refuses to start on anything older, and ubuntu-latest
+          # produced one that needed GLIBC 2.43: unusable on 22.04 and 24.04, which is
+          # most people. Building old runs new; building new does not run old.
+          - os: ubuntu-22.04
             artifact: Cytolux-linux
             sep: ":"
             icon: cytolux/icons/app/cytolux-256.png
