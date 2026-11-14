@@ -75,6 +75,15 @@ jobs:
           --hidden-import openpyxl
           --hidden-import pyqtgraph
           run_cytolux.py
+      - name: Qt runtime libraries (Linux runner only)
+        if: runner.os == 'Linux'
+        # A bare runner has no libEGL, so the binary cannot even import PySide6 and the
+        # smoke test below would fail on the runner rather than on the build. A Linux
+        # desktop already has these; they are listed in the evaluation README.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libegl1 libgl1 libxkbcommon0 libdbus-1-3 \
+            libfontconfig1 libfreetype6 libxcb-cursor0 libxcb-xinerama0
       - name: Smoke test the binary
         shell: bash
         env:
