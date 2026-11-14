@@ -101,9 +101,32 @@ class EventData:
 
 # ----------------------------------------------------------------------------- gates
 
-def gate_mask(ed, g):
+def build_masks(ed, pops, gate_of, vals_of=None):
+    """Walk a population list and return {path: boolean mask}, children ANDed into parents.
+
+    `pops` must list parents before children, which add_pop guarantees. A population
+    whose parent is missing is skipped; one whose gate names a channel this file does
+    not have comes back empty rather than raising, so a panel that varies across a
+    workspace still opens. `vals_of(p)` may supply the already-transformed columns for
+    a population, which is what makes repeated re-gating of one file affordable.
+    """
+    m = {"root": np.ones(ed.n, dtype=bool)}
+    for p in pops:
+        parent = m.get(p["parent"])
+        if parent is None:
+            continue
+        try:
+            vals = None if vals_of is None else vals_of(p)
+            m[p["path"]] = parent & gate_mask(ed, gate_of(p), vals=vals)
+        except KeyError:                # channel missing in this file
+            m[p["path"]] = np.zeros(ed.n, dtype=bool)
+    return m
+
+
+def gate_mask(ed, g, vals=None):
     dims, xfs = g["dims"], g["xf"]
-    vals = [tx.apply(xf, ed.col(d)) for d, xf in zip(dims, xfs)]
+    if vals is None:
+        vals = [tx.apply(xf, ed.col(d)) for d, xf in zip(dims, xfs)]
     t = g["type"]
     if t == "rect":
         m = np.ones(ed.n, dtype=bool)
@@ -474,16 +497,8 @@ class Workspace:
     def masks(self, s):
         if s.name in self._masks:
             return self._masks[s.name]
-        ed = self.events(s)
-        m = {"root": np.ones(ed.n, dtype=bool)}
-        for p in self.pops:
-            parent = m.get(p["parent"])
-            if parent is None:
-                continue
-            try:
-                m[p["path"]] = parent & gate_mask(ed, self.gate_for(p["path"], s.name))
-            except KeyError:            # channel missing in this file
-                m[p["path"]] = np.zeros(ed.n, dtype=bool)
+        m = build_masks(self.events(s), self.pops,
+                        lambda p: self.gate_for(p["path"], s.name))
         self._masks[s.name] = m
         return m
 
