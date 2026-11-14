@@ -47,6 +47,8 @@ MENU_TIPS = {
     "View / edit matrix…":
         "Inspect the active spillover matrix and adjust coefficients by hand. Diagonal smears "
         "between two colours mean compensation is wrong.",
+    "Undo": "Step back one edit. Gates, renames, deletions and per-sample adjustments are all undoable.",
+    "Redo": "Step forward again after an undo.",
     "Rename channels (marker names)…":
         "Give channels readable marker names, so axes read CD3 rather than Comp-V710-A.",
     "Delete selected gate":
@@ -81,6 +83,8 @@ SHORTCUTS = {
     "Previous sample": "PageUp",
     "Next sample": "PageDown",
     "Edit this sample only, on or off": "L",
+    "Undo": "Ctrl+Z",
+    "Redo": "Ctrl+Shift+Z",
     "Select, Rectangle, Polygon, Ellipse, Quadrant, Range tools": "1 to 6",
     "Cancel drawing and go back to Select": "Esc",
     "Close a polygon": "Enter",
@@ -101,6 +105,7 @@ WIDGET_TIPS = {
     "cb_xf_x": "How the X axis is scaled. Biex keeps negative events visible near zero.",
     "cb_xf_y": "How the Y axis is scaled. Biex keeps negative events visible near zero.",
     "cb_mode": "Pseudocolor shades by event density. Dots draws one point per event.",
+    "sample_filter": "Type part of a sample name to narrow the list. Useful on a full plate.",
     "prev_sample": "Go to the previous sample [PageUp]",
     "next_sample": "Go to the next sample [PageDown]",
 }
@@ -144,6 +149,13 @@ TOPICS = [
     ("a gate counts zero on every sample",
      "The channel that gate uses is missing from these files, or the template came from a "
      "different panel. Check the axis names against the channels in the file."),
+    ("undo a mistake, go back, I deleted a gate by accident",
+     "Ctrl+Z steps back and Ctrl+Shift+Z steps forward again. Drawing, moving, renaming and "
+     "deleting gates are all undoable, including a deleted population and everything under it. "
+     "The Edit menu names the exact edit you are about to undo."),
+    ("find one sample, too many samples, filter the list, 96 wells",
+     "Type into the Filter samples box above the sample list to narrow it. The All samples tab "
+     "is the other way: it shows every sample at once, and clicking a plot opens that sample."),
     ("keyboard shortcut, hotkey, key binding",
      "Press F1 for the full list. The ones worth memorising: Ctrl+S saves, Ctrl+E exports to "
      "Excel, Ctrl+T adds a statistic, keys 1 to 6 pick a gate tool, Backspace goes up to the "

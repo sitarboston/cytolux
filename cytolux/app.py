@@ -66,7 +66,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tree.customContextMenuRequested.connect(self._tree_menu)
         left = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         w1 = QtWidgets.QWidget(); l1 = QtWidgets.QVBoxLayout(w1); l1.setContentsMargins(4, 4, 4, 4)
-        l1.addWidget(QtWidgets.QLabel("<b>Samples</b>")); l1.addWidget(self.sample_list)
+        self.sample_filter = QtWidgets.QLineEdit()
+        self.sample_filter.setPlaceholderText("Filter samples…")
+        self.sample_filter.setClearButtonEnabled(True)
+        self.sample_filter.setToolTip(WIDGET_TIPS["sample_filter"])
+        self.sample_filter.textChanged.connect(self._filter_samples)
+        l1.addWidget(QtWidgets.QLabel("<b>Samples</b>"))
+        l1.addWidget(self.sample_filter)
+        l1.addWidget(self.sample_list)
         w2 = QtWidgets.QWidget(); l2 = QtWidgets.QVBoxLayout(w2); l2.setContentsMargins(4, 4, 4, 4)
         l2.addWidget(QtWidgets.QLabel("<b>Gates</b> (new gates go on every sample; italic = adjusted for this sample)"))
         l2.addWidget(self.tree)
@@ -240,6 +247,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act(m, "Load matrix from CSV…", self.load_comp_csv)
         self._act(m, "View / edit matrix…", self.edit_comp)
         m = self.menuBar().addMenu("&Edit"); m.setToolTipsVisible(True)
+        self.act_undo = self._act(m, "Undo", self.do_undo, "Ctrl+Z",
+                                  tip="Step back one edit. Gates, renames, deletions and "
+                                      "per-sample adjustments are all undoable.")
+        self.act_redo = self._act(m, "Redo", self.do_redo, "Ctrl+Shift+Z",
+                                  tip="Step forward again after an undo.")
+        m.addSeparator()
+        m.aboutToShow.connect(self._sync_undo_actions)
         self._act(m, "Rename channels (marker names)…", self.edit_labels)
         self._act(m, "Delete selected gate", self._delete_selected, "Delete")
         self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
@@ -318,11 +332,26 @@ class MainWindow(QtWidgets.QMainWindow):
             it.setToolTip(f"{s.path}\n{s.event_count:,} events")
             self.sample_list.addItem(it)
         self.sample_list.blockSignals(False)
+        if getattr(self, "sample_filter", None) and self.sample_filter.text():
+            self._filter_samples(self.sample_filter.text())
         if self.ws.samples:
             names = [s.name for s in self.ws.samples]
             row = names.index(keep) if keep in names else 0
             self.sample_list.setCurrentRow(row)
             self._sample_changed(row)
+
+    def _filter_samples(self, text):
+        """Hide samples that do not match, without disturbing the selection."""
+        t = (text or "").strip().lower()
+        shown = 0
+        for i in range(self.sample_list.count()):
+            it = self.sample_list.item(i)
+            hit = t in it.text().lower()
+            it.setHidden(bool(t) and not hit)
+            shown += hit or not t
+        if t:
+            self.statusBar().showMessage("%d of %d samples match \u2018%s\u2019"
+                                         % (shown, self.sample_list.count(), text), 3000)
 
     def open_workspace(self, path=None):
         if not path:
@@ -897,6 +926,39 @@ class MainWindow(QtWidgets.QMainWindow):
     def _local_toggled(self, on):
         self.settings.setValue("edit_local", on)
         self.act_local.setText("Edit: this sample" if on else "Edit: all samples")
+
+    def _sync_undo_actions(self):
+        u, r = self.ws.undo_label(), self.ws.redo_label()
+        self.act_undo.setEnabled(self.ws.can_undo)
+        self.act_redo.setEnabled(self.ws.can_redo)
+        self.act_undo.setText("Undo %s" % u if u else "Undo")
+        self.act_redo.setText("Redo %s" % r if r else "Redo")
+
+    def do_undo(self):
+        label = self.ws.undo()
+        if label is None and not self.ws.can_redo:
+            self.statusBar().showMessage("Nothing to undo", 3000)
+            return
+        self._after_undo("Undid %s" % label if label else "Undone")
+
+    def do_redo(self):
+        label = self.ws.redo()
+        if label is None:
+            self.statusBar().showMessage("Nothing to redo", 3000)
+            return
+        self._after_undo("Redid %s" % label if label else "Redone")
+
+    def _after_undo(self, msg):
+        keep = self.ws.samples[self.sample_list.currentRow()].name \
+            if self.ws.samples and self.sample_list.currentRow() >= 0 else None
+        self._fill_tree()
+        self._sync_xf_widgets()
+        self.refresh()
+        if self.tabs.currentIndex() == 2:
+            self._refresh_table()
+        self._mark()
+        self._sync_undo_actions()
+        self.statusBar().showMessage(msg, 4000)
 
     def _after_gate_change(self, redraw=True):
         self._mark()

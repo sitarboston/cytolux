@@ -213,6 +213,10 @@ class Workspace:
         self._events = OrderedDict()
         self._masks = {}             # sample name -> {path: mask}
         self.version = 0
+        self.UNDO_DEPTH = 50
+        self._undo = []              # [(snapshot, label)] oldest first
+        self._redo = []
+        self._prev = self.snapshot()
 
     # --- samples
     def add_files(self, paths):
@@ -349,19 +353,21 @@ class Workspace:
                 if q["path"] == parent or q["path"].startswith(parent + "/"):
                     idx = i + 1
         self.pops.insert(idx, p)
-        self.changed()
+        self.changed(label="add %s" % p["name"])
         return p
 
     def set_gate(self, path, gate, sname=None):
+        name = (self.pop(path) or {}).get("name", "gate")
         if sname is not None:
             self.overrides.setdefault(sname, {})[path] = gate
+            self.changed(label="adjust %s for %s" % (name, sname))
         else:
             self.pop(path)["gate"] = gate
-        self.changed()
+            self.changed(label="move %s" % name)
 
     def clear_override(self, path, sname):
         self.overrides.get(sname, {}).pop(path, None)
-        self.changed()
+        self.changed(label="reset %s on %s" % (path.rsplit("/", 1)[-1], sname))
 
     def has_override(self, path, sname):
         return path in self.overrides.get(sname, {})
@@ -374,7 +380,7 @@ class Workspace:
                 if g in gone:
                     del ov[g]
         self.stat_defs = [d for d in self.stat_defs if d["pop"] not in gone and d.get("arg") not in gone]
-        self.changed()
+        self.changed(label="delete %s" % path.rsplit("/", 1)[-1])
 
     def rename_pop(self, path, new_name):
         p = self.pop(path)
@@ -384,6 +390,7 @@ class Workspace:
                 q["path"] = new_path + q["path"][len(path):]
             if q["parent"] == path or q["parent"].startswith(path + "/"):
                 q["parent"] = new_path + q["parent"][len(path):]
+        old_name = p["name"]
         p["name"] = new_path.rsplit("/", 1)[1]
         for ov in self.overrides.values():
             for k in list(ov):
@@ -394,10 +401,71 @@ class Workspace:
                 v = d.get(key)
                 if isinstance(v, str) and (v == path or v.startswith(path + "/")):
                     d[key] = new_path + v[len(path):]
-        self.changed()
+        self.changed(label="rename %s to %s" % (old_name, p["name"]))
         return new_path
 
-    def changed(self, events=False):
+    # --- undo
+    # Only the analysis state is snapshotted: the loaded samples and their event
+    # arrays are untouched, so a snapshot costs almost nothing and undo never
+    # re-reads an FCS file.
+    SNAPSHOT_FIELDS = ("pops", "overrides", "xforms", "labels", "stat_defs",
+                       "annot_cols", "annotations", "comp_mode")
+
+    def snapshot(self):
+        return {f: copy.deepcopy(getattr(self, f)) for f in self.SNAPSHOT_FIELDS}
+
+    def _restore(self, snap):
+        for f, v in snap.items():
+            setattr(self, f, copy.deepcopy(v))
+        self._masks.clear()
+        self.version += 1
+
+    @property
+    def can_undo(self):
+        return bool(self._undo)
+
+    @property
+    def can_redo(self):
+        return bool(self._redo)
+
+    def undo_label(self):
+        return self._undo[-1][1] if self._undo else None
+
+    def redo_label(self):
+        return self._redo[-1][1] if self._redo else None
+
+    def undo(self):
+        """Step back one edit. Returns the label of what was undone, or None."""
+        if not self._undo:
+            return None
+        snap, label = self._undo.pop()
+        self._redo.append((self.snapshot(), label))
+        self._restore(snap)
+        self._prev = snap
+        return label
+
+    def redo(self):
+        if not self._redo:
+            return None
+        snap, label = self._redo.pop()
+        self._undo.append((self.snapshot(), label))
+        self._restore(snap)
+        self._prev = snap
+        return label
+
+    def clear_undo(self):
+        """Called after open/load: the file as opened is the baseline."""
+        self._undo.clear()
+        self._redo.clear()
+        self._prev = self.snapshot()
+
+    def changed(self, events=False, label=None):
+        # push the state as it was *before* this edit
+        self._undo.append((self._prev, label))
+        if len(self._undo) > self.UNDO_DEPTH:
+            self._undo.pop(0)
+        self._redo.clear()
+        self._prev = self.snapshot()
         self._masks.clear()
         if events:
             self._events.clear()
@@ -476,6 +544,7 @@ class Workspace:
         ws.annot_cols = d.get("annot_cols", [])
         ws.annotations = d.get("annotations", {})
         ws.path = path
+        ws.clear_undo()
         return ws
 
 
