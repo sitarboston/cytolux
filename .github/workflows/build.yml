@@ -149,14 +149,17 @@ jobs:
         with:
           name: ${{ matrix.artifact }}-installer
           path: installer/
-          retention-days: 90
+          # Was 90 days. A tagged build publishes these to a GitHub release, which
+          # is the permanent home and does not count against Actions storage; the
+          # artifact is only there to carry the file from this job to the release
+          # job, and to be downloadable from an untagged build for a few days.
+          retention-days: 14
 
-      - name: Upload the unpacked bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/
-          retention-days: 30
+      # The unpacked PyInstaller folder used to be uploaded as well, on every build,
+      # on all three platforms. It held the same binaries as the installer and it was
+      # 29 GB of the 33 GB that filled this account's Actions storage quota on
+      # 2026-11-18, at which point every upload in the workflow began to fail. A
+      # build that needs inspecting can be re-run with the step added back.
 
   # A tag starting with v publishes the three installers as a GitHub release, so
   # the download links are permanent instead of 90-day CI artifacts.
