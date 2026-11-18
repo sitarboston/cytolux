@@ -81,6 +81,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --clean --windowed --name Cytolux
           --icon "${{ matrix.icon }}"
+          --osx-bundle-identifier com.samyabhaduri.cytolux
           --add-data "cytolux/icons${{ matrix.sep }}cytolux/icons"
           --collect-all flowkit
           --hidden-import openpyxl

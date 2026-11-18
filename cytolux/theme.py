@@ -104,3 +104,112 @@ def apply(app):
     app.setStyle(QtWidgets.QStyleFactory.create("Fusion"))
     app.setPalette(palette())
     app.setStyleSheet(stylesheet())
+
+
+class FlowLayout(QtWidgets.QLayout):
+    """Lay widgets out left to right and wrap to the next line when they run out.
+
+    Qt ships no such layout. A plain QHBoxLayout of eight buttons reports a minimum
+    width equal to all eight, and QMainWindow honours it: the Statistics tab alone
+    held the central widget at 1362 px, so the window could not be made small enough
+    for a 1366x768 laptop and a newly opened dock was squeezed to 99 px. Wrapping
+    costs a little height instead, and every control stays visible and clickable,
+    which a horizontal scrollbar under a button row does not manage.
+    """
+
+    def __init__(self, parent=None, spacing=6):
+        super().__init__(parent)
+        self._items = []
+        self.setSpacing(spacing)
+
+    # -- the five methods QLayout requires
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    # -- wrapping
+    def expandingDirections(self):
+        return QtCore.Qt.Orientations(QtCore.Qt.Orientation(0))
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._lay(QtCore.QRect(0, 0, width, 0), apply=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._lay(rect, apply=True)
+
+    def minimumSize(self):
+        """One control wide. This is the whole point: the row stops dictating the
+        window's minimum width, and wraps instead."""
+        size = QtCore.QSize()
+        for it in self._items:
+            size = size.expandedTo(it.minimumSize())
+        m = self.contentsMargins()
+        return size + QtCore.QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _lay(self, rect, apply):
+        m = self.contentsMargins()
+        area = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y, line = area.x(), area.y(), 0
+        for it in self._items:
+            w = it.sizeHint().width()
+            h = it.sizeHint().height()
+            if line and x + w > area.right() + 1:
+                x = area.x()
+                y += line + self.spacing()
+                line = 0
+            if apply:
+                it.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), it.sizeHint()))
+            x += w + self.spacing()
+            line = max(line, h)
+        return y + line - rect.y() + m.bottom()
+
+
+def control_row(layout):
+    """Re-pack a row of controls so it cannot dictate the window's minimum width.
+
+    A horizontal row is re-laid in a FlowLayout, which wraps. Anything else, such as
+    the two-row grid above the gating plot, keeps its arrangement inside a scroll
+    area, because wrapping would scramble the Y and X rows into one another.
+    """
+    if not isinstance(layout, QtWidgets.QHBoxLayout):
+        inner = QtWidgets.QWidget()
+        inner.setLayout(layout)
+        area = QtWidgets.QScrollArea()
+        area.setWidget(inner)
+        area.setWidgetResizable(True)
+        area.setFrameShape(QtWidgets.QFrame.NoFrame)
+        area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        area.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        h = inner.sizeHint().height()
+        area.setFixedHeight(h + area.horizontalScrollBar().sizeHint().height())
+        area.setMinimumWidth(120)
+        return area
+
+    holder = QtWidgets.QWidget()
+    flow = FlowLayout(holder)
+    flow.setContentsMargins(0, 0, 0, 0)
+    # Move the widgets across and drop the spacers: a stretch that pushed two buttons
+    # to the right edge would otherwise push them off the first wrapped line.
+    while layout.count():
+        item = layout.takeAt(0)
+        w = item.widget()
+        if w is not None:
+            flow.addWidget(w)
+    holder.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+    return holder

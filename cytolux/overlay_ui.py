@@ -82,7 +82,7 @@ class OverlayTab(QtWidgets.QWidget):
         row.addStretch(1)
         row.addWidget(self.btn_export)
         lay = QtWidgets.QVBoxLayout(self)
-        lay.addLayout(row)
+        lay.addWidget(theme.control_row(row))
         lay.addWidget(self.note)
         lay.addWidget(self.plot, 1)
 

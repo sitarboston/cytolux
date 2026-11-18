@@ -26,8 +26,30 @@ from .uncertainty_ui import FragilityDialog, UncertaintyDock
 from .plot import GatePlot, LUT, density_levels
 
 APP = "Cytolux"
+
+# macOS maps the key labelled "delete" to Key_Backspace and puts Key_Delete behind
+# Fn, so any binding that treats the two as different keys behaves differently there.
+MAC = sys.platform == "darwin"
+
+# Wide enough for the help answers to wrap like prose rather than one word per line.
+ASK_DOCK_WIDTH = 380
 HIST = "[Histogram]"
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def settings():
+    """Where preferences live, with one override for test runs.
+
+    The window saves its geometry and dock layout on close. That is right in the
+    application and wrong in a test suite, whose windows are built on a small
+    offscreen screen: a run would leave the next real launch narrow with the Ask
+    panel collapsed. CYTOLUX_SETTINGS points at a throwaway ini file instead, and
+    works on all three platforms, which QSettings.setPath does not.
+    """
+    override = os.environ.get("CYTOLUX_SETTINGS")
+    if override:
+        return QtCore.QSettings(override, QtCore.QSettings.IniFormat)
+    return QtCore.QSettings("Cytolux", "Cytolux")
 
 
 def icon(name):
@@ -62,11 +84,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view = {}            # population path -> (x, y) last used axes
         self.fj_counts = None
         self.dirty = False
-        self.settings = QtCore.QSettings("Cytolux", "Cytolux")
+        self.settings = settings()
         self.setWindowIcon(app_icon())
         self.resize(1400, 900)
         self._build()
         self._update_title()
+        self._restore_layout()
 
     # ================================================================== layout
     def _build(self):
@@ -151,7 +174,11 @@ class MainWindow(QtWidgets.QMainWindow):
         bar.addWidget(self.lbl_info, 1, 4, 1, 3)
         bar.setColumnStretch(6, 1)
         ptab = QtWidgets.QWidget(); pl = QtWidgets.QVBoxLayout(ptab)
-        pl.addLayout(bar); pl.addWidget(self.plot, 1)
+        # Wrapped for the same reason as the other control rows, and for one more: the
+        # channel combo sizes itself to the longest marker name in the panel, so an
+        # honest label like "tEGFR-PE (CAR reporter)" raised the whole window's
+        # minimum width as soon as a file was opened.
+        pl.addWidget(theme.control_row(bar)); pl.addWidget(self.plot, 1)
 
         # ---- overview tab
         self.ov_area = QtWidgets.QScrollArea(); self.ov_area.setWidgetResizable(True)
@@ -192,7 +219,8 @@ class MainWindow(QtWidgets.QMainWindow):
         b.clicked.connect(self._copy_table); srow.addWidget(b)
         b = QtWidgets.QPushButton("Export to Excel…"); b.clicked.connect(lambda: self._safe(self.export_stats))
         srow.addWidget(b)
-        sl.addLayout(srow); sl.addWidget(self.stat_hint); sl.addWidget(self.table, 1)
+        sl.addWidget(theme.control_row(srow)); sl.addWidget(self.stat_hint)
+        sl.addWidget(self.table, 1)
 
         self.overlay = OverlayTab(self)
 
@@ -218,6 +246,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ---- tools
         tb = self.addToolBar("Tools"); tb.setIconSize(QtCore.QSize(26, 26))
+        # Without an objectName QMainWindow.saveState() drops the toolbar and warns.
+        tb.setObjectName("tools")
         tb.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
         self.tool_group = QtGui.QActionGroup(self)
         tips = {
@@ -239,13 +269,22 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tool_actions[t] = a
         self.tool_actions["pointer"].setChecked(True)
         tb.addSeparator()
-        a = QtGui.QAction(icon("up"), "Parent", self); a.setShortcut("Backspace")
-        a.setToolTip("Go up to the parent population [Backspace]")
+        # Backspace is the obvious key for "go up" on Windows and Linux. On macOS it is
+        # the key people press to delete things, so Parent moves to Cmd+Up there and
+        # Backspace is given to the delete action instead.
+        a = QtGui.QAction(icon("up"), "Parent", self)
+        up_key = "Ctrl+Up" if MAC else "Backspace"
+        a.setShortcut(up_key)
+        a.setToolTip("Go up to the parent population [%s]" % ("Cmd+Up" if MAC else "Backspace"))
         a.triggered.connect(self._go_parent); tb.addAction(a)
-        a = QtGui.QAction(icon("prev"), "Prev sample", self); a.setShortcut("PgUp")
+        # A Mac laptop has no PgUp or PgDown key: they are Fn+Up and Fn+Down. Both
+        # actions keep the page keys and gain the Mac convention as a second binding.
+        a = QtGui.QAction(icon("prev"), "Prev sample", self)
+        a.setShortcuts(["PgUp", "Ctrl+Alt+Left"] if MAC else ["PgUp"])
         a.setToolTip(WIDGET_TIPS["prev_sample"])
         a.triggered.connect(lambda: self._step_sample(-1)); tb.addAction(a)
-        a = QtGui.QAction(icon("next"), "Next sample", self); a.setShortcut("PgDown")
+        a = QtGui.QAction(icon("next"), "Next sample", self)
+        a.setShortcuts(["PgDown", "Ctrl+Alt+Right"] if MAC else ["PgDown"])
         a.setToolTip(WIDGET_TIPS["next_sample"])
         a.triggered.connect(lambda: self._step_sample(1)); tb.addAction(a)
         tb.addSeparator()
@@ -303,7 +342,11 @@ class MainWindow(QtWidgets.QMainWindow):
         m.addSeparator()
         m.aboutToShow.connect(self._sync_undo_actions)
         self._act(m, "Rename channels (marker names)…", self.edit_labels)
-        self._act(m, "Delete selected gate", self._delete_selected, "Delete")
+        # On a Mac the key labelled delete sends Backspace, and Key_Delete is Fn+Delete.
+        # Without the second binding the obvious key does nothing here.
+        a = self._act(m, "Delete selected gate", self._delete_selected, "Delete")
+        if MAC:
+            a.setShortcuts(["Delete", "Backspace"])
         self._act(m, "Annotate samples (donor, dose…)…", self.annotate)
         self._act(m, "Add statistic…", lambda: self.add_stat(), "Ctrl+T")
         m = self.menuBar().addMenu("Confide&nce"); m.setToolTipsVisible(True)
@@ -466,9 +509,40 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, ev):
         if self._maybe_save():
+            self._save_layout()
             ev.accept()
         else:
             ev.ignore()
+
+    # ---------------------------------------------------------------- layout memory
+    def _restore_layout(self):
+        """Put the window back where it was, at the size it was, with the same docks.
+
+        Nothing persisted before, so every launch reset the window to 1400x900 and
+        any dock the user had widened went back to its default. A geometry saved on
+        a monitor that is no longer attached is discarded rather than used, or the
+        window reopens off-screen.
+        """
+        g = self.settings.value("geometry")
+        if g and not self.restoreGeometry(g):
+            self.resize(1400, 900)
+        if not self._on_a_screen():
+            self.resize(1400, 900)
+            self.move(100, 100)
+        st = self.settings.value("winstate")
+        if st:
+            self.restoreState(st)
+
+    def _on_a_screen(self):
+        """True when some attached screen holds the window's title bar."""
+        probe = self.frameGeometry()
+        probe.setHeight(min(probe.height(), 40))
+        return any(sc.availableGeometry().intersects(probe)
+                   for sc in QtGui.QGuiApplication.screens())
+
+    def _save_layout(self):
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("winstate", self.saveState())
 
     def _add_recent(self, path):
         rec = [p for p in self._recent() if p != path]
@@ -1546,12 +1620,26 @@ class MainWindow(QtWidgets.QMainWindow):
             hint.setStyleSheet("color: palette(mid);")
             lay.addWidget(box); lay.addWidget(out); lay.addWidget(hint)
             dock.setWidget(body)
+            # QMainWindow gives a freshly added dock its minimum width, which for this
+            # layout is 99 px: the answers were there but unreadable in a sliver down
+            # the right edge. Claim a usable width once, and set a floor so dragging
+            # the splitter cannot squeeze it back to nothing.
+            body.setMinimumWidth(260)
             self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
             box.textChanged.connect(lambda t: out.setHtml(self._assistant_html(t)))
             self._assist_dock, self._assist_box, self._assist_out = dock, box, out
             out.setHtml(self._assistant_html(""))
+            self.resizeDocks([dock], [ASK_DOCK_WIDTH], QtCore.Qt.Horizontal)
+        elif self._assist_dock.isVisible() and self._assist_box.hasFocus():
+            # Clicking Ask again with the cursor already in the box means put it away.
+            self._assist_dock.hide()
+            return
         self._assist_dock.show()
         self._assist_dock.raise_()
+        if self._assist_dock.width() < 160:
+            # Restored from a saved layout that had been collapsed, or squeezed by a
+            # later resize. Either way it is unusable at that width.
+            self.resizeDocks([self._assist_dock], [ASK_DOCK_WIDTH], QtCore.Qt.Horizontal)
         self._assist_box.setFocus()
         self._assist_box.selectAll()
 
@@ -1644,6 +1732,31 @@ Confidence → Find the weakest gates sweeps every sample and sorts worst first.
 <p>Compensation uses the matrix written into the FCS files by default (FlowJo's "acquisition-defined").</p>"""
 
 
+def split_argv(args):
+    """Sort command-line paths into workspaces to open and FCS files to load.
+
+    The Windows installer registers .fcs in the registry, the Linux desktop file
+    declares application/vnd.isac.fcs, and both hand the paths here with %F. Only
+    .fgw and directories were handled, so double-clicking an FCS file on either
+    platform opened an empty window. Returns (workspaces, fcs_files).
+
+    Extensions are matched case-insensitively, and a directory contributes both
+    spellings, because a Windows cytometer writes .FCS and a case-sensitive
+    filesystem will not match it against *.fcs.
+    """
+    workspaces, fcs = [], []
+    for a in args:
+        low = a.lower()
+        if low.endswith(".fgw"):
+            workspaces.append(a)
+        elif os.path.isdir(a):
+            found = glob.glob(os.path.join(a, "*.fcs")) + glob.glob(os.path.join(a, "*.FCS"))
+            fcs += sorted(set(found))
+        elif low.endswith(".fcs") and os.path.isfile(a):
+            fcs.append(a)
+    return workspaces, fcs
+
+
 def main():
     QtWidgets.QApplication.setApplicationName(APP)
     # Must be set before the QApplication exists. Without it Qt rounds a 150% display
@@ -1657,11 +1770,11 @@ def main():
     theme.apply(app)
     w = MainWindow()
     w.show()
-    for a in sys.argv[1:]:
-        if a.endswith(".fgw"):
-            w._safe(lambda: w.open_workspace(a))
-        elif os.path.isdir(a):
-            w._load_files(sorted(glob.glob(os.path.join(a, "*.fcs"))))
+    workspaces, fcs = split_argv(sys.argv[1:])
+    for path in workspaces:
+        w._safe(lambda path=path: w.open_workspace(path))
+    if fcs:
+        w._safe(lambda: w._load_files(fcs))
     if os.environ.get("CYTOLUX_SELFTEST"):
         # Build everything, draw one frame, and leave. The packaged builds shipped
         # broken once because nothing ever started them; the release pipeline runs
