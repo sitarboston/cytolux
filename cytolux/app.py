@@ -1630,8 +1630,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._assist_dock, self._assist_box, self._assist_out = dock, box, out
             out.setHtml(self._assistant_html(""))
             self.resizeDocks([dock], [ASK_DOCK_WIDTH], QtCore.Qt.Horizontal)
-        elif self._assist_dock.isVisible() and self._assist_box.hasFocus():
-            # Clicking Ask again with the cursor already in the box means put it away.
+        elif self._ask_should_close():
             self._assist_dock.hide()
             return
         self._assist_dock.show()
@@ -1642,6 +1641,20 @@ class MainWindow(QtWidgets.QMainWindow):
             self.resizeDocks([self._assist_dock], [ASK_DOCK_WIDTH], QtCore.Qt.Horizontal)
         self._assist_box.setFocus()
         self._assist_box.selectAll()
+
+    def _ask_should_close(self):
+        """True when pressing Ask means put the panel away rather than go to it.
+
+        That is the case only when the panel is open and the user is already in it.
+        Pressing Ask from anywhere else means they want to search, so the panel stays
+        and takes the cursor. Asking the application which widget holds focus rather
+        than asking the search box whether it has it, so clicking Ask while reading an
+        answer in the results closes the panel too.
+        """
+        if not self._assist_dock.isVisible():
+            return False
+        focused = QtWidgets.QApplication.focusWidget()
+        return focused is not None and self._assist_dock.isAncestorOf(focused)
 
     def _assistant_html(self, question):
         import html as _html
