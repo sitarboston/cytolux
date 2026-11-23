@@ -1,0 +1,11 @@
+# Versions the test suite last passed on. CI installs against this file, so a new
+# upstream release cannot change a build without a commit that says so. Raise a
+# pin on its own branch and let CI run the 374 tests on it before merging.
+PySide6==6.11.2
+pyqtgraph==0.14.0
+numpy==2.5.3
+pandas==2.3.3
+flowkit==1.3.2
+openpyxl==3.1.5
+scipy==1.18.1
+pytest==9.2.0

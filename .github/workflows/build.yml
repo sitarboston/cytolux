@@ -25,7 +25,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" -c constraints.txt
       - name: Engine must stay headless
         run: |
           python - <<'PY'
@@ -69,7 +69,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" -c constraints.txt
       - name: Read the version from pyproject.toml
         id: ver
         shell: bash
@@ -144,16 +144,19 @@ jobs:
           done
           ls -lh
 
+      # Tag builds only. One set of three installers is about 450 MB, and a free
+      # account's private-repo artifact quota is 500 MB, so uploading on every push
+      # filled it within a day and every later upload failed. An untagged push
+      # still builds, packages and smoke-tests on all three platforms; it just
+      # keeps nothing. The release is the permanent home, and the artifact only
+      # carries the files to the release job, so one day is enough.
       - name: Upload the installer
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}-installer
           path: installer/
-          # Was 90 days. A tagged build publishes these to a GitHub release, which
-          # is the permanent home and does not count against Actions storage; the
-          # artifact is only there to carry the file from this job to the release
-          # job, and to be downloadable from an untagged build for a few days.
-          retention-days: 14
+          retention-days: 1
 
       # The unpacked PyInstaller folder used to be uploaded as well, on every build,
       # on all three platforms. It held the same binaries as the installer and it was
