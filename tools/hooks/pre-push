@@ -1,0 +1,12 @@
+#!/bin/sh
+# Refuse a direct push to master. Changes reach master through a pull request.
+# Installed by tools/install_hooks.sh.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/master|refs/heads/main)
+      echo "pre-push: direct push to ${remote_ref#refs/heads/} refused." >&2
+      echo "Push a branch and open a pull request (see CONTRIBUTING.md)." >&2
+      exit 1 ;;
+  esac
+done
+exit 0

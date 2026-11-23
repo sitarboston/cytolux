@@ -73,3 +73,20 @@ PyInstaller bundle on each platform, packages it, and attaches the three install
 to a GitHub release. The packaging steps are `packaging/cytolux.iss` (Inno Setup),
 `packaging/make_dmg.sh` and `packaging/make_appimage.sh`, each runnable by hand after
 PyInstaller has written `dist/`.
+
+## How this was built
+
+I built Cytolux with Claude Code, an AI coding agent, and every commit carries its
+`Co-Authored-By` line. Most of the code is the agent's. What the app does, and what
+counts as a right answer, is mine: I run flow cytometry as a cell therapy scientist,
+and I wanted to gate my own data without FlowJo.
+
+A right answer here means the count FlowJo gets. `tests/validate_flowjo.py` imports a
+FlowJo 10 workspace, re-gates the raw FCS files with Cytolux's own engine, and
+compares every population count with the one FlowJo saved. CI runs the test suite
+on every push and pull request, and fails if the gating engine imports any GUI code.
+
+Up to 0.3.1 everything went straight to `master`, often several features an hour,
+which is what the history shows. From here each change goes on its own branch and
+reaches `master` through a pull request that CI has passed. See
+[CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
