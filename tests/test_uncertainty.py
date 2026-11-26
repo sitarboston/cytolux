@@ -532,3 +532,16 @@ def test_counting_error_is_undefined_when_the_frequency_is():
     assert np.isnan(pu.counting_half_width)
     assert np.isnan(pu.combined_half_width)
     assert pu.grade == "unknown"
+
+
+@pytest.mark.parametrize("value", [99.64, 0.3])
+def test_the_combined_interval_stays_inside_zero_to_a_hundred(value):
+    """A 99.64% singlet gate once showed "98.11 to 101.16": the quadrature half-width
+    is symmetric, and nothing stopped it running past either end of a percentage."""
+    pu = PopUncertainty(path="/P", count=Spread(100.0, 0, 0, 0),
+                        parent_pct=Spread(value, value - 1.5, value + 1.5, value),
+                        total_pct=Spread(value, value, value, value),
+                        parent_n=2000, total_n=2000)
+    c = pu.combined
+    assert 0.0 <= c.lo <= c.value <= c.hi <= 100.0
+    assert pu.combined_half_width > 1.0
