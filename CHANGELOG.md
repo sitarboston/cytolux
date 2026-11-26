@@ -1,10 +1,12 @@
 # Changelog
 
-Versions follow `cytolux/__init__.py`. Only v0.3.1 has a GitHub release; the
+Versions follow `cytolux/__init__.py`. v0.3.1 onwards have GitHub releases; the
 earlier versions are tagged `flowgate-0.1` and `flowgate-0.2` at the commits that
 introduced them, and were never packaged.
 
 ## Unreleased
+
+## 0.3.2, 2026-11-26
 
 - MIT licence, CITATION.cff, and a screenshot of the Confidence panel at the top of
   the README.
