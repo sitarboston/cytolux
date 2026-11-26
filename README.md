@@ -25,25 +25,27 @@ or `~/cytolux/cytolux.sh`. Press F1 in the app for the quick guide.
 
 ## Test data: three FCS files are in this repository
 
-**You do not need to find your own data to try this.** Three real FCS files ship in
+**You do not need to find your own data to try this.** Three FCS files ship in
 [`testdata/`](testdata/), so a fresh clone has something to open immediately:
 
-| File | Events | What it is |
-|---|---|---|
-| [`testdata/Human_Mock.fcs`](testdata/Human_Mock.fcs) | 102,699 | untreated control |
-| [`testdata/Human_ConditionA.fcs`](testdata/Human_ConditionA.fcs) | 89,317 | treated, higher dose |
-| [`testdata/Human_ConditionB.fcs`](testdata/Human_ConditionB.fcs) | 129,615 | treated, lower dose |
+| File | Events |
+|---|---|
+| [`testdata/5019_123.fcs`](testdata/5019_123.fcs) | 21,470 |
+| [`testdata/5019_125.fcs`](testdata/5019_125.fcs) | 27,755 |
+| [`testdata/5019_154.fcs`](testdata/5019_154.fcs) | 26,302 |
 
-In vitro CAR-T on human T cells, 23 channels, CAR read on tEGFR-PE against
-CD4, CD8, CD5 and a viability dye. `$SPILLOVER` is in every file, so compensation
-from file works with no setup.
+Patient samples from the axi-cel cohort in Good et al., *Nature Medicine* 2022,
+acquired on a BD LSRII and released by the authors into the public domain (ODC
+PDDL 1.0). 25 parameters, with CAR, CD3, CD4, CD8, CD25, FOXP3, Helios and a
+viability dye among the labels. `SPILL` is in every file, so compensation from file
+works with no setup.
 
 Open all three at once:
 
     cytolux testdata/
 
-[`testdata/README.md`](testdata/README.md) gives the full panel, a gate tree that
-works on it, and exactly which keywords were stripped during de-identification.
+[`testdata/README.md`](testdata/README.md) gives the citation, the full panel, the
+checksums, and a gate template to start from.
 
 ## What it does
 
