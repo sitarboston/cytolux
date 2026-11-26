@@ -14,7 +14,8 @@ introduced them, and were never packaged.
 - The three builds behave the same on Windows, macOS and Linux: macOS Delete and
   Backspace, settings isolated from test runs, a window that fits a small laptop.
   The Ask panel toggle no longer depends on the display granting focus.
-- Three de-identified FCS files in `testdata/`, so a fresh clone has data to open.
+- Three public-domain FCS files in `testdata/`, from the axi-cel cohort of Good et al.,
+  Nature Medicine 2022, so a fresh clone has data to open.
 
 ## 0.3.1, 2026-11-14
 
