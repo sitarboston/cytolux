@@ -9,6 +9,7 @@ description = "Desktop flow cytometry viewer and gating application"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Samyabrata Bhaduri" }]
+license = { file = "LICENSE" }
 dependencies = [
     "PySide6>=6.6",
     "pyqtgraph>=0.13",
