@@ -2,6 +2,16 @@
 
 A desktop app for looking at and gating flow cytometry data (FCS 2.0/3.0/3.1). Local only.
 
+A gated percentage is a count divided by a line somebody drew with a mouse. Cytolux
+puts a confidence interval on every one, and says whether the gate or the event count
+is what limits it.
+
+![Cytolux gating a CAR19 product tube from Good et al. 2022, with the Confidence panel open](docs/shots/hero_confidence.png)
+
+*CAR19 product control tube from the public Good et al. 2022 dataset. Right: each
+population's interval, from 200 re-gatings with every boundary moved by about 1% of
+the axis, combined with counting error. Live is the weakest gate here, 63.35% with an interval of 56.15 to 70.55.*
+
 ## Install
 
 Download the file for your platform from the
@@ -61,7 +71,7 @@ checksums, and a gate template to start from.
   careful hand would, re-gates the file from the root, and reports where each percentage went. It
   separates the two reasons a number is shaky, because they call for opposite fixes: a boundary on a
   continuum means redraw the gate, too few events means go and acquire more. Confidence → Find the
-  weakest gates sweeps the whole workspace and sorts worst first. No commercial flow package does this.
+  weakest gates sweeps the whole workspace and sorts worst first.
 
 Engine check against FlowJo: `python -m tests.validate_flowjo <fcs_folder> <workspace.wsp>`.
 Requires Python 3.12 with PySide6, pyqtgraph, FlowKit, numpy, scipy and pandas.
@@ -73,6 +83,11 @@ PyInstaller bundle on each platform, packages it, and attaches the three install
 to a GitHub release. The packaging steps are `packaging/cytolux.iss` (Inno Setup),
 `packaging/make_dmg.sh` and `packaging/make_appimage.sh`, each runnable by hand after
 PyInstaller has written `dist/`.
+
+## License
+
+MIT. See [LICENSE](LICENSE). To cite Cytolux, use [CITATION.cff](CITATION.cff) or GitHub's
+"Cite this repository" button.
 
 ## How this was built
 

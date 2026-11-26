@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use Cytolux in published work, please cite it as below."
+title: "Cytolux: desktop flow cytometry gating with confidence intervals on gated frequencies"
+type: software
+authors:
+  - family-names: Bhaduri
+    given-names: Samyabrata
+license: MIT
+repository-code: "https://github.com/sitarboston/cytolux"
+version: 0.3.1
+date-released: 2026-11-14
+keywords:
+  - flow cytometry
+  - gating
+  - FCS
+  - confidence intervals

@@ -6,6 +6,8 @@ introduced them, and were never packaged.
 
 ## Unreleased
 
+- MIT licence, CITATION.cff, and a screenshot of the Confidence panel at the top of
+  the README.
 - The combined confidence interval is clamped to 0 to 100%. A 99.64% singlet gate
   had shown "98.11 to 101.16".
 - CI uploads installers only for `v*` tags and installs against `constraints.txt`.
