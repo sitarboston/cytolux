@@ -155,7 +155,7 @@ class UncertaintyDock(QtWidgets.QWidget):
                 ("  " * (path.count("/") - 1) + pu.name, path),
                 ("%.2f" % pu.parent_pct.value, None),
                 ("%.2f to %.2f" % (comb.lo, comb.hi), None),
-                ("%.2f" % comb.half_width, None),
+                ("%.2f" % pu.combined_half_width, None),
                 (pu.limited_by, HEADER_TIPS["Limited by"]),
                 (pu.grade, GRADE_NOTE[pu.grade]),
             ]

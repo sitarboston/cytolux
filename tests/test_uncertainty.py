@@ -545,3 +545,15 @@ def test_the_combined_interval_stays_inside_zero_to_a_hundred(value):
     c = pu.combined
     assert 0.0 <= c.lo <= c.value <= c.hi <= 100.0
     assert pu.combined_half_width > 1.0
+
+
+def test_clamping_the_interval_does_not_shrink_the_reported_half_width():
+    """The ± column and the exported "Half width" read combined_half_width, the
+    uncertainty itself. The clamped interval is narrower, and reporting its width
+    would make a number pressed against 100% look more certain than it is."""
+    pu = PopUncertainty(path="/P", count=Spread(100.0, 0, 0, 0),
+                        parent_pct=Spread(99.64, 98.0, 101.0, 99.64),
+                        total_pct=Spread(99.64, 99.64, 99.64, 99.64),
+                        parent_n=2000, total_n=2000)
+    assert pu.combined.hi == 100.0
+    assert pu.combined.half_width < pu.combined_half_width
