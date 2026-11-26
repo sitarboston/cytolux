@@ -7,8 +7,8 @@ authors:
     given-names: Samyabrata
 license: MIT
 repository-code: "https://github.com/sitarboston/cytolux"
-version: 0.3.1
-date-released: 2026-11-14
+version: 0.3.2
+date-released: 2026-11-26
 keywords:
   - flow cytometry
   - gating
