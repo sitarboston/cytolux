@@ -181,7 +181,11 @@ class PopUncertainty:
         """The interval to put in a figure: the value with everything accounted for."""
         hw = self.combined_half_width
         v = self.parent_pct.value
-        return Spread(v, v - hw, v + hw, self.parent_pct.median)
+        # A share of a parent lives in [0, 100]. The quadrature half-width is
+        # symmetric, so near either end it ran past the limit: a 99.64% singlet gate
+        # showed "98.11 to 101.16". Clamp the ends; the half-width, and so the grade,
+        # is unchanged.
+        return Spread(v, max(0.0, v - hw), min(100.0, v + hw), self.parent_pct.median)
 
     @property
     def counting_half_width(self):
@@ -392,7 +396,7 @@ def fragility_report(ws, samples=None, n=DEFAULT_N, sigma=DEFAULT_SIGMA,
                 "% of parent": pu.parent_pct.value,
                 "Low": comb.lo,
                 "High": comb.hi,
-                "Half width": comb.half_width,
+                "Half width": pu.combined_half_width,
                 "Relative": comb.relative,
                 "Gate half width": pu.parent_pct.half_width,
                 "Counting half width": pu.counting_half_width,
